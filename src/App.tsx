@@ -13,7 +13,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <ProgressProvider>
-        <BrowserRouter>
+        <BrowserRouter basename="/Verbs_Fr">
           <Routes>
             <Route element={<AppShell />}>
               <Route path="/" element={<Dashboard />} />
