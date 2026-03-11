@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Dumbbell, Sparkles, BookOpen, Shuffle } from 'lucide-react';
+import { ArrowLeft, Sparkles, BookOpen, Shuffle, Timer, AlertTriangle } from 'lucide-react';
 import { verbs } from '../data/verbs';
 import { TENSES } from '../data/tenses';
 import { useProgress } from '../context/UserProgressContext';
@@ -9,23 +9,22 @@ import { generateQuizQuestions, generateReviewQuestions } from '../lib/quizEngin
 import { gradeFromUI } from '../lib/srs';
 import type { QuizAnswer, QuizQuestion } from '../types';
 import Card from '../components/ui/Card';
-import Button from '../components/ui/Button';
 import ProgressBar from '../components/ui/ProgressBar';
 import QuizCard from '../components/practice/QuizCard';
 import QuizResult from '../components/practice/QuizResult';
+import SpeedDrill from '../components/practice/SpeedDrill';
 
-type PracticeMode = 'select' | 'quiz' | 'result';
+type PracticeMode = 'select' | 'quiz' | 'result' | 'speed-drill' | 'confusing-pairs';
 
 export default function Practice() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { recordAnswer, getDueItems } = useProgress();
+  const { recordAnswer, getDueItems, recordPerfectSession, recordSpeedDrill } = useProgress();
 
   const [mode, setMode] = useState<PracticeMode>('select');
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<QuizAnswer[]>([]);
-  const [selectedTense, setSelectedTense] = useState<string>('PRESENT');
 
   const preselectedVerb = searchParams.get('verb');
   const preselectedMode = searchParams.get('mode');
@@ -45,7 +44,6 @@ export default function Practice() {
     const dueItems = getDueItems();
     const qs = generateReviewQuestions(dueItems, verbs, verbs, 10);
     if (qs.length === 0) {
-      // Nothing to review - start random practice
       startRandomPractice();
       return;
     }
@@ -99,18 +97,35 @@ export default function Practice() {
 
       setAnswers((prev) => [...prev, quizAnswer]);
 
-      // Record SRS
       const grade = gradeFromUI(isCorrect ? 'good' : 'again');
-      recordAnswer(question.verbId, question.tense, grade);
+      recordAnswer(question.verbId, question.tense, grade, question.type);
 
       if (currentIndex + 1 < questions.length) {
         setCurrentIndex((prev) => prev + 1);
       } else {
+        // Check for perfect session
+        const allAnswers = [...answers, quizAnswer];
+        if (allAnswers.length >= 10 && allAnswers.every(a => a.isCorrect)) {
+          recordPerfectSession();
+        }
         setMode('result');
       }
     },
-    [questions, currentIndex, recordAnswer]
+    [questions, currentIndex, recordAnswer, answers, recordPerfectSession]
   );
+
+  const handleSpeedDrillFinish = useCallback((score: number, correct: number, total: number) => {
+    recordSpeedDrill(score);
+  }, [recordSpeedDrill]);
+
+  if (mode === 'speed-drill') {
+    return (
+      <SpeedDrill
+        onFinish={handleSpeedDrillFinish}
+        onBack={() => setMode('select')}
+      />
+    );
+  }
 
   if (mode === 'quiz') {
     const progress = ((currentIndex + 1) / questions.length) * 100;
@@ -168,7 +183,7 @@ export default function Practice() {
         </p>
       </motion.div>
 
-      {/* Quick modes */}
+      {/* Quick modes - 2x2 grid */}
       <div className="grid grid-cols-2 gap-3">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <Card hover padding="md" className="h-full" onClick={startReview}>
@@ -188,10 +203,28 @@ export default function Practice() {
             <p className="text-xs text-warm-500 mt-0.5">Surprise me</p>
           </Card>
         </motion.div>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <Card hover padding="md" className="h-full" onClick={() => setMode('speed-drill')}>
+            <div className="p-2 rounded-xl bg-red-50 dark:bg-red-900/30 w-fit mb-2">
+              <Timer size={20} className="text-red-500" />
+            </div>
+            <p className="font-semibold text-warm-800 dark:text-warm-100">Speed Drill</p>
+            <p className="text-xs text-warm-500 mt-0.5">60s challenge</p>
+          </Card>
+        </motion.div>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+          <Card hover padding="md" className="h-full" onClick={() => navigate('/confusing-pairs')}>
+            <div className="p-2 rounded-xl bg-orange-50 dark:bg-orange-900/30 w-fit mb-2">
+              <AlertTriangle size={20} className="text-orange-500" />
+            </div>
+            <p className="font-semibold text-warm-800 dark:text-warm-100">Tricky Pairs</p>
+            <p className="text-xs text-warm-500 mt-0.5">Savoir vs connaître</p>
+          </Card>
+        </motion.div>
       </div>
 
       {/* Practice by tense */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
         <Card>
           <h2 className="font-semibold text-warm-800 dark:text-warm-100 mb-3 flex items-center gap-2">
             <BookOpen size={18} />

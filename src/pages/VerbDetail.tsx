@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Dumbbell } from 'lucide-react';
+import { ArrowLeft, Dumbbell, Volume2, Lightbulb, GitBranch, ChevronRight } from 'lucide-react';
 import { verbs } from '../data/verbs';
 import { examples } from '../data/examples';
 import { useProgress } from '../context/UserProgressContext';
@@ -11,11 +11,14 @@ import ProgressRing from '../components/ui/ProgressRing';
 import ConjugationTable from '../components/verbs/ConjugationTable';
 import ExampleSentence from '../components/verbs/ExampleSentence';
 import { getGroupLabel, getDifficultyLabel } from '../lib/utils';
+import { speak, isAudioSupported } from '../lib/audio';
+import { getVerbFamily } from '../data/verbFamilies';
+import { getMnemonicsForVerb } from '../data/mnemonics';
 
 export default function VerbDetail() {
   const { verbId } = useParams();
   const navigate = useNavigate();
-  const { getVerbMastery } = useProgress();
+  const { getVerbMastery, userData } = useProgress();
 
   const verb = verbs.find((v) => v.id === verbId);
   if (!verb) {
@@ -31,6 +34,9 @@ export default function VerbDetail() {
 
   const mastery = getVerbMastery(verb.id);
   const verbExamples = examples.filter((e) => e.verbId === verb.id);
+  const family = getVerbFamily(verb.id);
+  const mnemonics = getMnemonicsForVerb(verb.id);
+  const audioEnabled = userData.settings.audioEnabled && isAudioSupported();
 
   return (
     <div className="space-y-4">
@@ -51,9 +57,20 @@ export default function VerbDetail() {
         <Card padding="lg">
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-warm-800 dark:text-warm-100">
-                {verb.infinitive}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-3xl font-bold text-warm-800 dark:text-warm-100">
+                  {verb.infinitive}
+                </h1>
+                {audioEnabled && (
+                  <button
+                    onClick={() => speak(verb.infinitive, userData.settings.audioRate)}
+                    className="p-1.5 rounded-lg hover:bg-warm-100 dark:hover:bg-warm-700 transition-colors"
+                    title="Listen"
+                  >
+                    <Volume2 size={18} className="text-coral-500" />
+                  </button>
+                )}
+              </div>
               <p className="text-lg text-warm-500 dark:text-warm-400 mt-1">
                 {verb.english}
               </p>
@@ -81,6 +98,29 @@ export default function VerbDetail() {
           </Button>
         </Card>
       </motion.div>
+
+      {/* Memory Tips */}
+      {mnemonics.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+        >
+          <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10">
+            <div className="flex items-start gap-3">
+              <Lightbulb size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-warm-800 dark:text-warm-100 text-sm">
+                  {mnemonics[0].title}
+                </h3>
+                <p className="text-sm text-warm-600 dark:text-warm-300 mt-1 leading-relaxed">
+                  {mnemonics[0].tip}
+                </p>
+              </div>
+            </div>
+          </Card>
+        </motion.div>
+      )}
 
       {/* Conjugations */}
       <motion.div
@@ -110,6 +150,46 @@ export default function VerbDetail() {
             {verbExamples.map((ex, i) => (
               <ExampleSentence key={i} example={ex} />
             ))}
+          </Card>
+        </motion.div>
+      )}
+
+      {/* Verb Family */}
+      {family && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+        >
+          <Card>
+            <h2 className="text-lg font-semibold text-warm-800 dark:text-warm-100 mb-2 flex items-center gap-2">
+              <GitBranch size={18} />
+              {family.name}
+            </h2>
+            <p className="text-sm text-warm-500 dark:text-warm-400 mb-3">
+              {family.explanation}
+            </p>
+            <div className="space-y-1">
+              {family.verbs
+                .filter(v => v !== verb.id)
+                .map(relatedId => {
+                  const related = verbs.find(v => v.id === relatedId);
+                  if (!related) return null;
+                  return (
+                    <button
+                      key={relatedId}
+                      onClick={() => navigate(`/verbs/${relatedId}`)}
+                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-warm-50 dark:hover:bg-warm-700/50 transition-colors text-left"
+                    >
+                      <div>
+                        <span className="font-medium text-coral-500">{related.infinitive}</span>
+                        <span className="text-sm text-warm-400 ml-2">{related.english}</span>
+                      </div>
+                      <ChevronRight size={16} className="text-warm-400" />
+                    </button>
+                  );
+                })}
+            </div>
           </Card>
         </motion.div>
       )}

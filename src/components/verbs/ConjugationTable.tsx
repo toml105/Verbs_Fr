@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Volume2 } from 'lucide-react';
 import { conjugations } from '../../data/conjugations';
 import { TENSES } from '../../data/tenses';
 import { PRONOUNS, formatConjugation } from '../../lib/utils';
 import { useProgress } from '../../context/UserProgressContext';
 import { getMasteryColor, getMasteryLabel } from '../../lib/srs';
+import { speak, isAudioSupported } from '../../lib/audio';
 
 interface ConjugationTableProps {
   verbId: string;
@@ -75,18 +77,29 @@ export default function ConjugationTable({ verbId }: ConjugationTableProps) {
             PRONOUNS.map((pronoun, i) => {
               const form = forms[i];
               if (!form) return null;
+              const audioEnabled = userData.settings.audioEnabled && isAudioSupported();
+              const fullForm = formatConjugation(PRONOUNS[i], form);
 
               return (
                 <div
                   key={i}
-                  className="flex items-center py-2.5 px-3 rounded-xl hover:bg-warm-50 dark:hover:bg-warm-800/50 transition-colors"
+                  className="flex items-center py-2.5 px-3 rounded-xl hover:bg-warm-50 dark:hover:bg-warm-800/50 transition-colors group"
                 >
                   <span className="text-warm-500 dark:text-warm-400 w-24 text-sm">
                     {PRONOUNS[i]}
                   </span>
-                  <span className="text-warm-800 dark:text-warm-100 font-medium text-base">
+                  <span className="text-warm-800 dark:text-warm-100 font-medium text-base flex-1">
                     {form}
                   </span>
+                  {audioEnabled && (
+                    <button
+                      onClick={() => speak(fullForm, userData.settings.audioRate)}
+                      className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-warm-100 dark:hover:bg-warm-700 transition-all"
+                      title="Listen"
+                    >
+                      <Volume2 size={14} className="text-warm-400" />
+                    </button>
+                  )}
                 </div>
               );
             })

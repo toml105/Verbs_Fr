@@ -59,9 +59,19 @@ export interface UserStats {
   todayDate: string;
 }
 
+export interface DailyActivity {
+  date: string;
+  reviews: number;
+  correct: number;
+  xpEarned: number;
+}
+
 export interface UserSettings {
   darkMode: boolean;
   dailyGoal: number;
+  audioEnabled: boolean;
+  audioAutoPlay: boolean;
+  audioRate: number;
 }
 
 export interface UserData {
@@ -69,6 +79,22 @@ export interface UserData {
   stats: UserStats;
   settings: UserSettings;
   version: number;
+  // XP & Leveling
+  totalXP: number;
+  activityHistory: DailyActivity[];
+  // Achievements
+  unlockedAchievements: string[];
+  achievementDates: Record<string, string>;
+  // Session tracking
+  sessionCorrectStreak: number;
+  perfectSessions: number;
+  quizTypesUsed: string[];
+  // Daily challenges
+  completedChallenges: string[];
+  // Speed drill
+  speedDrillBest: number;
+  // Onboarding
+  hasCompletedOnboarding: boolean;
 }
 
 // Quiz types

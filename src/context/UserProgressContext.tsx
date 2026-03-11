@@ -4,23 +4,59 @@ import {
   useContext,
   useEffect,
   useReducer,
+  useState,
   type ReactNode,
 } from 'react';
-import type { UserData, TenseProgress, SRSGrade } from '../types';
+import type { UserData, TenseProgress, SRSGrade, DailyActivity } from '../types';
 import { loadUserData, saveUserData, getDefaultUserData, clearUserData } from '../lib/storage';
 import { calculateSRS, calculateMasteryLevel, getDefaultTenseProgress, isDueForReview } from '../lib/srs';
 import { todayString } from '../lib/utils';
+import { calculateXPForAnswer, XP_DAILY_GOAL_BONUS } from '../lib/xp';
+import { checkNewAchievements, type Achievement } from '../lib/achievements';
 
 type Action =
-  | { type: 'RECORD_ANSWER'; verbId: string; tense: string; grade: SRSGrade }
+  | { type: 'RECORD_ANSWER'; verbId: string; tense: string; grade: SRSGrade; quizType?: string }
   | { type: 'SET_DAILY_GOAL'; goal: number }
   | { type: 'RESET_PROGRESS' }
-  | { type: 'SET_DARK_MODE'; darkMode: boolean };
+  | { type: 'SET_DARK_MODE'; darkMode: boolean }
+  | { type: 'AWARD_BONUS_XP'; amount: number; reason: string }
+  | { type: 'RECORD_PERFECT_SESSION' }
+  | { type: 'RECORD_SPEED_DRILL'; score: number }
+  | { type: 'COMPLETE_DAILY_CHALLENGE'; challengeId: string }
+  | { type: 'COMPLETE_ONBOARDING'; level?: string }
+  | { type: 'UPDATE_SETTINGS'; settings: Partial<UserData['settings']> }
+  | { type: 'UNLOCK_ACHIEVEMENTS'; ids: string[] };
+
+function updateDailyActivity(state: UserData, xpEarned: number, isCorrect: boolean): DailyActivity[] {
+  const today = todayString();
+  const history = [...state.activityHistory];
+  const todayIndex = history.findIndex(a => a.date === today);
+
+  if (todayIndex >= 0) {
+    history[todayIndex] = {
+      ...history[todayIndex],
+      reviews: history[todayIndex].reviews + 1,
+      correct: history[todayIndex].correct + (isCorrect ? 1 : 0),
+      xpEarned: history[todayIndex].xpEarned + xpEarned,
+    };
+  } else {
+    history.push({
+      date: today,
+      reviews: 1,
+      correct: isCorrect ? 1 : 0,
+      xpEarned,
+    });
+  }
+
+  // Keep last 365 days
+  if (history.length > 365) history.splice(0, history.length - 365);
+  return history;
+}
 
 function reducer(state: UserData, action: Action): UserData {
   switch (action.type) {
     case 'RECORD_ANSWER': {
-      const { verbId, tense, grade } = action;
+      const { verbId, tense, grade, quizType } = action;
       const verbProgress = { ...state.verbProgress };
       const currentVerb = verbProgress[verbId] ? { ...verbProgress[verbId] } : {};
       const currentTense: TenseProgress = currentVerb[tense]
@@ -35,7 +71,8 @@ function reducer(state: UserData, action: Action): UserData {
       currentTense.nextReview = srsResult.nextReview;
       currentTense.lastReview = todayString();
       currentTense.totalAttempts += 1;
-      if (grade >= 3) currentTense.correctAttempts += 1;
+      const isCorrect = grade >= 3;
+      if (isCorrect) currentTense.correctAttempts += 1;
       currentTense.masteryLevel = calculateMasteryLevel(currentTense);
 
       currentVerb[tense] = currentTense;
@@ -68,7 +105,39 @@ function reducer(state: UserData, action: Action): UserData {
         stats.longestStreak = stats.currentStreak;
       }
 
-      return { ...state, verbProgress, stats };
+      // XP calculation
+      const sessionStreak = isCorrect ? state.sessionCorrectStreak : 0;
+      const xpEarned = calculateXPForAnswer(isCorrect, sessionStreak, stats.currentStreak);
+      let totalXP = state.totalXP + xpEarned;
+
+      // Daily goal bonus
+      const wasGoalMet = state.stats.todayReviews >= stats.dailyGoal;
+      const isGoalNowMet = stats.todayReviews >= stats.dailyGoal;
+      if (!wasGoalMet && isGoalNowMet) {
+        totalXP += XP_DAILY_GOAL_BONUS;
+      }
+
+      // Update session streak
+      const newSessionStreak = isCorrect ? state.sessionCorrectStreak + 1 : 0;
+
+      // Activity history
+      const activityHistory = updateDailyActivity(state, xpEarned, isCorrect);
+
+      // Track quiz types
+      const quizTypesUsed = [...state.quizTypesUsed];
+      if (quizType && !quizTypesUsed.includes(quizType)) {
+        quizTypesUsed.push(quizType);
+      }
+
+      return {
+        ...state,
+        verbProgress,
+        stats,
+        totalXP,
+        sessionCorrectStreak: newSessionStreak,
+        activityHistory,
+        quizTypesUsed,
+      };
     }
 
     case 'SET_DAILY_GOAL': {
@@ -91,6 +160,63 @@ function reducer(state: UserData, action: Action): UserData {
       };
     }
 
+    case 'AWARD_BONUS_XP': {
+      return {
+        ...state,
+        totalXP: state.totalXP + action.amount,
+      };
+    }
+
+    case 'RECORD_PERFECT_SESSION': {
+      return {
+        ...state,
+        perfectSessions: state.perfectSessions + 1,
+      };
+    }
+
+    case 'RECORD_SPEED_DRILL': {
+      return {
+        ...state,
+        speedDrillBest: Math.max(state.speedDrillBest, action.score),
+      };
+    }
+
+    case 'COMPLETE_DAILY_CHALLENGE': {
+      if (state.completedChallenges.includes(action.challengeId)) return state;
+      return {
+        ...state,
+        completedChallenges: [...state.completedChallenges, action.challengeId],
+        totalXP: state.totalXP + 50,
+      };
+    }
+
+    case 'COMPLETE_ONBOARDING': {
+      return {
+        ...state,
+        hasCompletedOnboarding: true,
+      };
+    }
+
+    case 'UPDATE_SETTINGS': {
+      return {
+        ...state,
+        settings: { ...state.settings, ...action.settings },
+      };
+    }
+
+    case 'UNLOCK_ACHIEVEMENTS': {
+      const today = todayString();
+      const newDates = { ...state.achievementDates };
+      for (const id of action.ids) {
+        newDates[id] = today;
+      }
+      return {
+        ...state,
+        unlockedAchievements: [...state.unlockedAchievements, ...action.ids],
+        achievementDates: newDates,
+      };
+    }
+
     default:
       return state;
   }
@@ -98,28 +224,46 @@ function reducer(state: UserData, action: Action): UserData {
 
 interface ProgressContextType {
   userData: UserData;
-  recordAnswer: (verbId: string, tense: string, grade: SRSGrade) => void;
+  recordAnswer: (verbId: string, tense: string, grade: SRSGrade, quizType?: string) => void;
   setDailyGoal: (goal: number) => void;
   resetProgress: () => void;
   getVerbMastery: (verbId: string) => number;
   getOverallMastery: () => number;
   getDueReviewCount: () => number;
   getDueItems: () => { verbId: string; tense: string }[];
+  awardBonusXP: (amount: number, reason: string) => void;
+  recordPerfectSession: () => void;
+  recordSpeedDrill: (score: number) => void;
+  completeDailyChallenge: (challengeId: string) => void;
+  completeOnboarding: (level?: string) => void;
+  updateSettings: (settings: Partial<UserData['settings']>) => void;
+  pendingAchievements: Achievement[];
+  clearPendingAchievements: () => void;
 }
 
 const ProgressContext = createContext<ProgressContextType | null>(null);
 
 export function ProgressProvider({ children }: { children: ReactNode }) {
   const [userData, dispatch] = useReducer(reducer, null, loadUserData);
+  const [pendingAchievements, setPendingAchievements] = useState<Achievement[]>([]);
 
   // Auto-save on changes
   useEffect(() => {
     saveUserData(userData);
   }, [userData]);
 
+  // Check achievements after every state change
+  useEffect(() => {
+    const newAchievements = checkNewAchievements(userData);
+    if (newAchievements.length > 0) {
+      setPendingAchievements(prev => [...prev, ...newAchievements]);
+      dispatch({ type: 'UNLOCK_ACHIEVEMENTS', ids: newAchievements.map(a => a.id) });
+    }
+  }, [userData.stats.totalReviews, userData.totalXP, userData.sessionCorrectStreak, userData.perfectSessions, userData.speedDrillBest]);
+
   const recordAnswer = useCallback(
-    (verbId: string, tense: string, grade: SRSGrade) => {
-      dispatch({ type: 'RECORD_ANSWER', verbId, tense, grade });
+    (verbId: string, tense: string, grade: SRSGrade, quizType?: string) => {
+      dispatch({ type: 'RECORD_ANSWER', verbId, tense, grade, quizType });
     },
     []
   );
@@ -130,6 +274,34 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
 
   const resetProgress = useCallback(() => {
     dispatch({ type: 'RESET_PROGRESS' });
+  }, []);
+
+  const awardBonusXP = useCallback((amount: number, reason: string) => {
+    dispatch({ type: 'AWARD_BONUS_XP', amount, reason });
+  }, []);
+
+  const recordPerfectSession = useCallback(() => {
+    dispatch({ type: 'RECORD_PERFECT_SESSION' });
+  }, []);
+
+  const recordSpeedDrill = useCallback((score: number) => {
+    dispatch({ type: 'RECORD_SPEED_DRILL', score });
+  }, []);
+
+  const completeDailyChallenge = useCallback((challengeId: string) => {
+    dispatch({ type: 'COMPLETE_DAILY_CHALLENGE', challengeId });
+  }, []);
+
+  const completeOnboarding = useCallback((level?: string) => {
+    dispatch({ type: 'COMPLETE_ONBOARDING', level });
+  }, []);
+
+  const updateSettings = useCallback((settings: Partial<UserData['settings']>) => {
+    dispatch({ type: 'UPDATE_SETTINGS', settings });
+  }, []);
+
+  const clearPendingAchievements = useCallback(() => {
+    setPendingAchievements([]);
   }, []);
 
   const getVerbMastery = useCallback(
@@ -190,6 +362,14 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
         getOverallMastery,
         getDueReviewCount,
         getDueItems,
+        awardBonusXP,
+        recordPerfectSession,
+        recordSpeedDrill,
+        completeDailyChallenge,
+        completeOnboarding,
+        updateSettings,
+        pendingAchievements,
+        clearPendingAchievements,
       }}
     >
       {children}

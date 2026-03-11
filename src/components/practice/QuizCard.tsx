@@ -1,8 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Volume2 } from 'lucide-react';
 import type { QuizQuestion } from '../../types';
 import { checkAnswer, PRONOUNS } from '../../lib/utils';
 import { TENSES } from '../../data/tenses';
+import { speak, isAudioSupported } from '../../lib/audio';
+import { useProgress } from '../../context/UserProgressContext';
+import { calculateXPForAnswer } from '../../lib/xp';
 import Button from '../ui/Button';
 
 interface QuizCardProps {
@@ -15,15 +19,19 @@ export default function QuizCard({ question, onAnswer }: QuizCardProps) {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [xpFloat, setXpFloat] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { userData } = useProgress();
 
   const tenseName = TENSES.find(t => t.key === question.tense)?.frenchName ?? question.tense;
+  const audioEnabled = userData.settings.audioEnabled && isAudioSupported();
 
   useEffect(() => {
     setUserInput('');
     setSelectedOption(null);
     setShowResult(false);
     setIsCorrect(false);
+    setXpFloat(null);
     if (question.type !== 'multiple-choice') {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
@@ -38,6 +46,20 @@ export default function QuizCard({ question, onAnswer }: QuizCardProps) {
     setIsCorrect(correct);
     setShowResult(true);
 
+    // XP float animation
+    const xp = calculateXPForAnswer(correct, correct ? userData.sessionCorrectStreak : 0, userData.stats.currentStreak);
+    setXpFloat(xp);
+
+    // Haptic feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(correct ? 10 : [50, 50, 50]);
+    }
+
+    // Audio: speak correct answer
+    if (audioEnabled && userData.settings.audioAutoPlay) {
+      speak(question.correctAnswer, userData.settings.audioRate);
+    }
+
     setTimeout(() => {
       onAnswer(answer, correct);
     }, 1500);
@@ -49,13 +71,34 @@ export default function QuizCard({ question, onAnswer }: QuizCardProps) {
     }
   };
 
+  const handleSpeak = () => {
+    if (audioEnabled) {
+      speak(question.correctAnswer, userData.settings.audioRate);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 30 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -30 }}
-      className="bg-white dark:bg-warm-800 rounded-2xl p-6 shadow-sm border border-warm-100 dark:border-warm-700"
+      className="bg-white dark:bg-warm-800 rounded-2xl p-6 shadow-sm border border-warm-100 dark:border-warm-700 relative overflow-hidden"
     >
+      {/* XP Float Animation */}
+      <AnimatePresence>
+        {xpFloat !== null && (
+          <motion.div
+            initial={{ opacity: 1, y: 0 }}
+            animate={{ opacity: 0, y: -40 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.2, ease: 'easeOut' }}
+            className={`absolute top-4 right-4 font-bold text-sm ${isCorrect ? 'text-amber-500' : 'text-warm-400'}`}
+          >
+            +{xpFloat} XP
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Tense & verb info */}
       <div className="flex items-center gap-2 mb-4">
         <span className="px-2.5 py-1 rounded-full bg-coral-50 dark:bg-coral-900/30 text-coral-600 dark:text-coral-400 text-xs font-medium">
@@ -145,16 +188,27 @@ export default function QuizCard({ question, onAnswer }: QuizCardProps) {
               : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
           }`}
         >
-          {isCorrect ? (
-            <p className="font-medium">Correct!</p>
-          ) : (
-            <div>
-              <p className="font-medium">Not quite.</p>
-              <p className="text-sm mt-1">
-                Correct answer: <strong>{question.correctAnswer}</strong>
-              </p>
-            </div>
-          )}
+          <div className="flex items-center justify-between">
+            {isCorrect ? (
+              <p className="font-medium">Correct!</p>
+            ) : (
+              <div>
+                <p className="font-medium">Not quite.</p>
+                <p className="text-sm mt-1">
+                  Correct answer: <strong>{question.correctAnswer}</strong>
+                </p>
+              </div>
+            )}
+            {audioEnabled && (
+              <button
+                onClick={handleSpeak}
+                className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                title="Listen"
+              >
+                <Volume2 size={16} />
+              </button>
+            )}
+          </div>
         </motion.div>
       )}
 

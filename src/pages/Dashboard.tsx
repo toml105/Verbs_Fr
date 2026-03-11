@@ -1,12 +1,17 @@
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
-import { Flame, BookOpen, Dumbbell, ChevronRight, Sparkles } from 'lucide-react';
+import { Flame, BookOpen, Dumbbell, ChevronRight, Sparkles, Star, Target, Zap } from 'lucide-react';
 import { useProgress } from '../context/UserProgressContext';
 import Card from '../components/ui/Card';
 import ProgressRing from '../components/ui/ProgressRing';
 import ProgressBar from '../components/ui/ProgressBar';
 import Button from '../components/ui/Button';
+import HeatMap from '../components/ui/HeatMap';
 import { verbs } from '../data/verbs';
+import { getLevelFromXP } from '../lib/xp';
+import { getTodayChallenge } from '../data/dailyChallenges';
+import { todayString } from '../lib/utils';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -21,6 +26,18 @@ export default function Dashboard() {
     Math.round((stats.todayReviews / stats.dailyGoal) * 100)
   );
 
+  const levelInfo = getLevelFromXP(userData.totalXP);
+  const todayChallenge = getTodayChallenge();
+  const todayChallengeKey = `${todayString()}_${todayChallenge.id}`;
+  const isChallengeCompleted = userData.completedChallenges.includes(todayChallengeKey);
+
+  // Today's XP earned
+  const todayXP = useMemo(() => {
+    const today = todayString();
+    const todayActivity = userData.activityHistory.find(a => a.date === today);
+    return todayActivity?.xpEarned ?? 0;
+  }, [userData.activityHistory]);
+
   const greeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
@@ -30,7 +47,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
+      {/* Header with Level */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -40,18 +57,49 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold text-warm-800 dark:text-warm-100">
             {greeting()} 👋
           </h1>
-          <p className="text-warm-500 dark:text-warm-400 mt-0.5">
-            Ready to practice French verbs?
-          </p>
-        </div>
-        {stats.currentStreak > 0 && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 rounded-full">
-            <Flame size={18} className="text-amber-500" />
-            <span className="font-bold text-amber-600 dark:text-amber-400">
-              {stats.currentStreak}
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-sm font-medium text-violet-500">
+              Lvl {levelInfo.level} · {levelInfo.title}
             </span>
+            {todayXP > 0 && (
+              <span className="text-xs text-amber-500 font-medium">
+                +{todayXP} XP today
+              </span>
+            )}
           </div>
-        )}
+        </div>
+        <div className="flex items-center gap-2">
+          {stats.currentStreak > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 rounded-full">
+              <Flame size={18} className="text-amber-500" />
+              <span className="font-bold text-amber-600 dark:text-amber-400">
+                {stats.currentStreak}
+              </span>
+            </div>
+          )}
+        </div>
+      </motion.div>
+
+      {/* XP Progress Bar */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+      >
+        <div className="flex items-center gap-3">
+          <Star size={16} className="text-amber-500 flex-shrink-0" />
+          <div className="flex-1">
+            <div className="flex justify-between text-xs mb-1">
+              <span className="text-warm-500">Level {levelInfo.level}</span>
+              <span className="text-warm-400">{levelInfo.currentXP}/{levelInfo.nextLevelXP} XP</span>
+            </div>
+            <ProgressBar
+              progress={levelInfo.progress}
+              color="bg-gradient-to-r from-amber-400 to-amber-500"
+              height="h-1.5"
+            />
+          </div>
+        </div>
       </motion.div>
 
       {/* Progress overview */}
@@ -104,9 +152,44 @@ export default function Dashboard() {
         </Card>
       </motion.div>
 
+      {/* Daily Challenge */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+      >
+        <Card
+          hover={!isChallengeCompleted}
+          onClick={isChallengeCompleted ? undefined : () => navigate('/practice')}
+          className={isChallengeCompleted ? 'border-emerald-200 dark:border-emerald-800' : ''}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl ${isChallengeCompleted ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-amber-50 dark:bg-amber-900/30'}`}>
+              {isChallengeCompleted
+                ? <Target size={20} className="text-emerald-500" />
+                : <Zap size={20} className="text-amber-500" />
+              }
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <p className="font-semibold text-warm-800 dark:text-warm-100 text-sm">
+                  Daily Challenge
+                </p>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-medium">
+                  +50 XP
+                </span>
+              </div>
+              <p className="text-sm text-warm-500 dark:text-warm-400 mt-0.5">
+                {isChallengeCompleted ? 'Completed!' : todayChallenge.description}
+              </p>
+            </div>
+            {!isChallengeCompleted && <ChevronRight size={16} className="text-warm-400" />}
+          </div>
+        </Card>
+      </motion.div>
+
       {/* Action cards */}
       <div className="grid grid-cols-2 gap-3">
-        {/* Review due */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -134,7 +217,6 @@ export default function Dashboard() {
           </Card>
         </motion.div>
 
-        {/* Quick practice */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -161,11 +243,29 @@ export default function Dashboard() {
         </motion.div>
       </div>
 
+      {/* Heat Map */}
+      {userData.activityHistory.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <Card>
+            <h3 className="font-semibold text-warm-800 dark:text-warm-100 text-sm mb-3">
+              Activity
+            </h3>
+            <div className="overflow-x-auto">
+              <HeatMap activityHistory={userData.activityHistory} />
+            </div>
+          </Card>
+        </motion.div>
+      )}
+
       {/* Start practicing CTA */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+        transition={{ delay: 0.35 }}
       >
         <Button
           onClick={() => navigate('/practice')}
@@ -181,7 +281,7 @@ export default function Dashboard() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.35 }}
+        transition={{ delay: 0.4 }}
       >
         <Card
           hover
