@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Sparkles, BookOpen, Shuffle, Timer, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Sparkles, BookOpen, Shuffle, Timer, AlertTriangle, Ear, Mic, MessageCircle } from 'lucide-react';
 import { verbs } from '../data/verbs';
 import { TENSES } from '../data/tenses';
 import { useProgress } from '../context/UserProgressContext';
@@ -222,6 +222,36 @@ export default function Practice() {
           </Card>
         </motion.div>
       </div>
+
+      {/* Speaking & Listening */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
+        <h2 className="text-sm font-semibold text-warm-500 dark:text-warm-400 mb-2 uppercase tracking-wide">
+          Speaking & Listening
+        </h2>
+        <div className="grid grid-cols-3 gap-3">
+          <Card hover padding="md" className="h-full" onClick={() => navigate('/listening')}>
+            <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 w-fit mb-2">
+              <Ear size={20} className="text-blue-500" />
+            </div>
+            <p className="font-semibold text-warm-800 dark:text-warm-100 text-sm">Listen</p>
+            <p className="text-xs text-warm-500 mt-0.5">Train your ear</p>
+          </Card>
+          <Card hover padding="md" className="h-full" onClick={() => navigate('/speaking')}>
+            <div className="p-2 rounded-xl bg-coral-50 dark:bg-coral-900/30 w-fit mb-2">
+              <Mic size={20} className="text-coral-500" />
+            </div>
+            <p className="font-semibold text-warm-800 dark:text-warm-100 text-sm">Speak</p>
+            <p className="text-xs text-warm-500 mt-0.5">Pronunciation</p>
+          </Card>
+          <Card hover padding="md" className="h-full" onClick={() => navigate('/conversations')}>
+            <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 w-fit mb-2">
+              <MessageCircle size={20} className="text-emerald-500" />
+            </div>
+            <p className="font-semibold text-warm-800 dark:text-warm-100 text-sm">Chat</p>
+            <p className="text-xs text-warm-500 mt-0.5">Dialogues</p>
+          </Card>
+        </div>
+      </motion.div>
 
       {/* Practice by tense */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>

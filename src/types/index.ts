@@ -98,7 +98,7 @@ export interface UserData {
 }
 
 // Quiz types
-export type QuizType = 'conjugation' | 'multiple-choice' | 'fill-blank' | 'context-match';
+export type QuizType = 'conjugation' | 'multiple-choice' | 'fill-blank' | 'context-match' | 'listening' | 'speaking' | 'conversation';
 
 export interface QuizQuestion {
   type: QuizType;
