@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
+import { AIProvider } from './context/AIContext';
 import { ProgressProvider, useProgress } from './context/UserProgressContext';
 import AppShell from './components/layout/AppShell';
 import Dashboard from './pages/Dashboard';
@@ -85,9 +86,11 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <ProgressProvider>
-          <AppRoutes />
-        </ProgressProvider>
+        <AIProvider>
+          <ProgressProvider>
+            <AppRoutes />
+          </ProgressProvider>
+        </AIProvider>
       </AuthProvider>
     </ThemeProvider>
   );

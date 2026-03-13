@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { motion } from 'framer-motion';
-import { Moon, Target, Trash2, Info, Volume2, User, LogOut, ArrowRight } from 'lucide-react';
+import { Moon, Target, Trash2, Info, Volume2, User, LogOut, ArrowRight, Brain } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { useAI } from '../context/AIContext';
 import { useProgress } from '../context/UserProgressContext';
 import Card from '../components/ui/Card';
 import Toggle from '../components/ui/Toggle';
@@ -21,6 +22,7 @@ const SPEECH_RATES = [
 export default function Settings() {
   const { darkMode, toggleDarkMode } = useTheme();
   const { user, signOut } = useAuth();
+  const { isOllamaAvailable, isChecking, selectedModel, setSelectedModel, availableModels, refreshStatus } = useAI();
   const { userData, setDailyGoal, resetProgress, updateSettings } = useProgress();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const audioSupported = isAudioSupported();
@@ -81,6 +83,87 @@ export default function Settings() {
               </div>
             </Link>
           )}
+        </Card>
+      </motion.div>
+
+      {/* AI Assistant */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.075 }}
+      >
+        <Card>
+          <h2 className="font-semibold text-warm-800 dark:text-warm-100 mb-4 flex items-center gap-2">
+            <Brain size={18} />
+            AI Assistant
+          </h2>
+          <div className="space-y-3">
+            {/* Status indicator */}
+            <div className="flex items-center gap-2">
+              {isChecking ? (
+                <>
+                  <span className="w-2.5 h-2.5 rounded-full bg-warm-300 dark:bg-warm-500 animate-pulse" />
+                  <span className="text-sm text-warm-500 dark:text-warm-400">Checking...</span>
+                </>
+              ) : isOllamaAvailable ? (
+                <>
+                  <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                  <span className="text-sm text-warm-600 dark:text-warm-300">Connected</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                  <span className="text-sm text-warm-600 dark:text-warm-300">Offline</span>
+                </>
+              )}
+              <button
+                onClick={() => refreshStatus()}
+                className="ml-auto text-xs text-coral-500 hover:text-coral-600 dark:hover:text-coral-400 transition-colors"
+              >
+                Refresh
+              </button>
+            </div>
+
+            {/* Model selector or setup instructions */}
+            {isOllamaAvailable && availableModels.length > 0 ? (
+              <div>
+                <label
+                  htmlFor="ai-model-select"
+                  className="text-sm text-warm-600 dark:text-warm-300 block mb-1.5"
+                >
+                  Model
+                </label>
+                <select
+                  id="ai-model-select"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="w-full rounded-xl border border-warm-200 dark:border-warm-600 bg-warm-50 dark:bg-warm-700 text-warm-800 dark:text-warm-100 py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-transparent transition-colors"
+                >
+                  {availableModels.map((model) => (
+                    <option key={model} value={model}>
+                      {model}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : !isChecking && !isOllamaAvailable ? (
+              <p className="text-sm text-warm-500 dark:text-warm-400 leading-relaxed">
+                Install Ollama from{' '}
+                <a
+                  href="https://ollama.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-coral-500 hover:text-coral-600 dark:hover:text-coral-400 underline"
+                >
+                  ollama.com
+                </a>
+                , then run:{' '}
+                <code className="bg-warm-100 dark:bg-warm-700 px-1.5 py-0.5 rounded text-xs font-mono">
+                  ollama pull mistral
+                </code>
+              </p>
+            ) : null}
+          </div>
         </Card>
       </motion.div>
 
