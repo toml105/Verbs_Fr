@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
 import { Flame, BookOpen, Dumbbell, ChevronRight, Sparkles, Star, Target, Zap, Ear, MessageCircle, GraduationCap } from 'lucide-react';
 import { useProgress } from '../context/UserProgressContext';
+import { useAI } from '../context/AIContext';
 import Card from '../components/ui/Card';
 import ProgressRing from '../components/ui/ProgressRing';
 import ProgressBar from '../components/ui/ProgressBar';
@@ -17,6 +18,7 @@ import { todayString } from '../lib/utils';
 export default function Dashboard() {
   const navigate = useNavigate();
   const { userData, getOverallMastery, getDueReviewCount, getDueGrammarLessons } = useProgress();
+  const { isOllamaAvailable } = useAI();
   const { stats } = userData;
 
   const overallMastery = getOverallMastery();
@@ -187,6 +189,41 @@ export default function Dashboard() {
               </p>
             </div>
             {!isChallengeCompleted && <ChevronRight size={16} className="text-warm-400" />}
+          </div>
+        </Card>
+      </motion.div>
+
+      {/* AI Tutor */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.18 }}
+      >
+        <Card
+          hover
+          onClick={() => navigate('/ai-tutor')}
+          className="flex items-center justify-between"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-coral-50 dark:bg-coral-900/30">
+              <Sparkles size={20} className="text-coral-500" />
+            </div>
+            <div>
+              <p className="font-semibold text-warm-800 dark:text-warm-100">
+                AI French Tutor
+              </p>
+              <p className="text-sm text-warm-500 dark:text-warm-400">
+                Practice conversational French with your AI tutor
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {isOllamaAvailable ? (
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            ) : (
+              <span className="text-xs text-warm-400">(Offline)</span>
+            )}
+            <ChevronRight size={16} className="text-warm-400" />
           </div>
         </Card>
       </motion.div>

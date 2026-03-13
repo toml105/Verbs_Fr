@@ -185,3 +185,29 @@ export interface SRSResult {
 }
 
 export type SRSGrade = 0 | 1 | 2 | 3 | 4 | 5;
+
+// AI Tutor types
+export interface AIMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string;
+  corrections?: GrammarCorrection[];
+}
+
+export interface GrammarCorrection {
+  original: string;
+  corrected: string;
+  explanation: string;
+  rule?: string;
+}
+
+export interface ConversationTopic {
+  id: string;
+  title: string;
+  titleFr: string;
+  description: string;
+  icon: string;
+  difficulty: 1 | 2 | 3;
+  starterPrompt: string;
+}
