@@ -16,6 +16,7 @@ import ListeningPractice from './pages/ListeningPractice';
 import SpeakingPractice from './pages/SpeakingPractice';
 import ConversationPractice from './pages/ConversationPractice';
 import AITutor from './pages/AITutor';
+import ConversationHistory from './pages/ConversationHistory';
 import Learn from './pages/Learn';
 import Grammar from './pages/Grammar';
 import GrammarLesson from './pages/GrammarLesson';
@@ -78,6 +79,7 @@ function AppRoutes() {
           <Route path="/speaking" element={<SpeakingPractice />} />
           <Route path="/conversations" element={<ConversationPractice />} />
           <Route path="/ai-tutor" element={<AITutor />} />
+          <Route path="/conversations/history" element={<ConversationHistory />} />
         </Route>
       </Routes>
     </BrowserRouter>

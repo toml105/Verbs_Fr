@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
-import { ArrowLeft, AlertTriangle, Sparkles, Star } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Clock, Sparkles, Star } from 'lucide-react';
 import { useAI } from '../context/AIContext';
+import { useAuth } from '../context/AuthContext';
 import { useProgress } from '../context/UserProgressContext';
+import { supabase } from '../lib/supabase';
 import { SYSTEM_PROMPTS } from '../lib/aiPrompts';
 import TopicSelector from '../components/ai/TopicSelector';
 import ChatMessage from '../components/ai/ChatMessage';
 import ChatInput from '../components/ai/ChatInput';
 import Badge from '../components/ui/Badge';
 import type { AIMessage, ConversationTopic, GrammarCorrection } from '../types';
+import type { ConversationRecord } from './ConversationHistory';
+
+const STORAGE_KEY = 'conjugo_conversations';
 
 /** Parse [CORRECTION: "..." -> "..." (...)] patterns from AI response text */
 function parseCorrections(text: string): GrammarCorrection[] {
@@ -33,6 +39,62 @@ function stripCorrections(text: string): string {
     .trim();
 }
 
+// --------------- localStorage helpers ---------------
+
+function getLocalConversations(): ConversationRecord[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as ConversationRecord[];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalConversation(record: ConversationRecord): void {
+  const all = getLocalConversations();
+  const idx = all.findIndex((c) => c.id === record.id);
+  if (idx >= 0) {
+    all[idx] = record;
+  } else {
+    all.unshift(record);
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+}
+
+// --------------- Supabase helpers ---------------
+
+async function upsertSupabaseConversation(
+  record: ConversationRecord,
+  userId: string,
+  isNew: boolean
+): Promise<void> {
+  if (!supabase) return;
+
+  if (isNew) {
+    await supabase.from('conversations').insert({
+      id: record.id,
+      user_id: userId,
+      title: record.title,
+      messages: record.messages,
+      topic: record.topic,
+      difficulty: record.difficulty,
+      created_at: record.createdAt,
+      updated_at: record.updatedAt,
+    });
+  } else {
+    await supabase
+      .from('conversations')
+      .update({
+        messages: record.messages,
+        updated_at: record.updatedAt,
+      })
+      .eq('id', record.id);
+  }
+}
+
+// --------------- Components ---------------
+
 function DifficultyStars({ level }: { level: 1 | 2 | 3 }) {
   return (
     <div className="flex gap-0.5">
@@ -53,15 +115,26 @@ function DifficultyStars({ level }: { level: 1 | 2 | 3 }) {
 
 export default function AITutor() {
   const { isOllamaAvailable, chatStream } = useAI();
+  const { user } = useAuth();
   const { getOverallMastery } = useProgress();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const [selectedTopic, setSelectedTopic] = useState<ConversationTopic | null | undefined>(undefined);
   const [messages, setMessages] = useState<AIMessage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRecording] = useState(false);
 
+  // Title displayed in the header for loaded conversations
+  const [conversationTitle, setConversationTitle] = useState<string>('Free Conversation');
+  const [conversationDifficulty, setConversationDifficulty] = useState<number | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  // Track current conversation id and whether it has been persisted (INSERT vs UPDATE)
+  const conversationIdRef = useRef<string | null>(null);
+  const isNewConversationRef = useRef(true);
 
   // Determine user level from mastery
   const getUserLevel = useCallback((): string => {
@@ -70,6 +143,105 @@ export default function AITutor() {
     if (mastery > 30) return 'intermediate';
     return 'beginner';
   }, [getOverallMastery]);
+
+  // --------- Persistence: save conversation after message exchange ---------
+
+  const saveConversation = useCallback(
+    (currentMessages: AIMessage[]) => {
+      const convId = conversationIdRef.current;
+      if (!convId) return;
+
+      const now = new Date().toISOString();
+      const title = selectedTopic
+        ? selectedTopic.titleFr
+        : conversationTitle !== 'Free Conversation'
+          ? conversationTitle
+          : 'Free Conversation';
+
+      const record: ConversationRecord = {
+        id: convId,
+        title,
+        topic: selectedTopic?.id ?? null,
+        difficulty: selectedTopic?.difficulty ?? conversationDifficulty,
+        messages: currentMessages,
+        createdAt: isNewConversationRef.current ? now : now, // will be overwritten on update
+        updatedAt: now,
+      };
+
+      // Always save to localStorage
+      saveLocalConversation(record);
+
+      // Also save to Supabase if authenticated
+      if (user) {
+        upsertSupabaseConversation(record, user.id, isNewConversationRef.current);
+      }
+
+      // After first save, switch to update mode
+      if (isNewConversationRef.current) {
+        isNewConversationRef.current = false;
+      }
+    },
+    [selectedTopic, conversationTitle, conversationDifficulty, user]
+  );
+
+  // --------- Load conversation from state if navigated with conversationId ---------
+
+  useEffect(() => {
+    const state = location.state as { conversationId?: string } | null;
+    if (!state?.conversationId) return;
+
+    async function loadConversation(id: string) {
+      let record: ConversationRecord | undefined;
+
+      // Try Supabase first if authenticated
+      if (user && supabase) {
+        try {
+          const { data } = await supabase
+            .from('conversations')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+          if (data) {
+            record = {
+              id: data.id,
+              title: data.title ?? 'Untitled',
+              topic: data.topic ?? null,
+              difficulty: data.difficulty ?? null,
+              messages: (data.messages ?? []) as AIMessage[],
+              createdAt: data.created_at,
+              updatedAt: data.updated_at,
+            };
+          }
+        } catch {
+          // Fall through to localStorage
+        }
+      }
+
+      // Fallback: localStorage
+      if (!record) {
+        const local = getLocalConversations();
+        record = local.find((c) => c.id === id);
+      }
+
+      if (!record) return;
+
+      // Restore state
+      conversationIdRef.current = record.id;
+      isNewConversationRef.current = false;
+      setConversationTitle(record.title);
+      setConversationDifficulty(record.difficulty);
+      setMessages(record.messages);
+      // Set selectedTopic to null (not undefined) to show the chat view
+      setSelectedTopic(null);
+    }
+
+    loadConversation(state.conversationId);
+
+    // Clear the location state so reloading doesn't re-trigger
+    window.history.replaceState({}, document.title);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -80,6 +252,15 @@ export default function AITutor() {
   const handleSelectTopic = useCallback(
     async (topic: ConversationTopic | null) => {
       setSelectedTopic(topic);
+
+      // Assign a new conversation ID
+      const newId = crypto.randomUUID();
+      conversationIdRef.current = newId;
+      isNewConversationRef.current = true;
+
+      const title = topic ? topic.titleFr : 'Free Conversation';
+      setConversationTitle(title);
+      setConversationDifficulty(topic?.difficulty ?? null);
 
       const level = getUserLevel();
       const topicName = topic?.starterPrompt ?? undefined;
@@ -132,16 +313,32 @@ export default function AITutor() {
         const corrections = parseCorrections(accumulated);
         const cleanContent = stripCorrections(accumulated);
 
-        setMessages((prev) => {
-          const updated = [...prev];
-          const lastIdx = updated.length - 1;
-          updated[lastIdx] = {
-            ...updated[lastIdx],
+        const finalMessages: AIMessage[] = [
+          systemMessage,
+          {
+            ...aiPlaceholder,
             content: cleanContent,
             corrections: corrections.length > 0 ? corrections : undefined,
-          };
-          return updated;
-        });
+          },
+        ];
+
+        setMessages(finalMessages);
+
+        // Save after the first exchange
+        const record: ConversationRecord = {
+          id: newId,
+          title,
+          topic: topic?.id ?? null,
+          difficulty: topic?.difficulty ?? null,
+          messages: finalMessages,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        saveLocalConversation(record);
+        if (user) {
+          upsertSupabaseConversation(record, user.id, true);
+        }
+        isNewConversationRef.current = false;
       } catch {
         setMessages((prev) => {
           const updated = [...prev];
@@ -156,7 +353,7 @@ export default function AITutor() {
         setIsGenerating(false);
       }
     },
-    [chatStream, getUserLevel]
+    [chatStream, getUserLevel, user]
   );
 
   // Handle sending a user message
@@ -219,6 +416,9 @@ export default function AITutor() {
             content: cleanContent,
             corrections: corrections.length > 0 ? corrections : undefined,
           };
+
+          // Save conversation after each exchange
+          saveConversation(updated);
           return updated;
         });
       } catch {
@@ -235,14 +435,18 @@ export default function AITutor() {
         setIsGenerating(false);
       }
     },
-    [chatStream, isGenerating, messages]
+    [chatStream, isGenerating, messages, saveConversation]
   );
 
   // Go back to topic selection
   const handleBack = () => {
+    conversationIdRef.current = null;
+    isNewConversationRef.current = true;
     setSelectedTopic(undefined);
     setMessages([]);
     setIsGenerating(false);
+    setConversationTitle('Free Conversation');
+    setConversationDifficulty(null);
   };
 
   // ----------- STATE 1: Topic Selection -----------
@@ -257,7 +461,7 @@ export default function AITutor() {
             <div className="p-2.5 rounded-xl bg-coral-50 dark:bg-coral-900/30">
               <Sparkles size={22} className="text-coral-500" />
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-2xl font-bold text-warm-800 dark:text-warm-100">
                 AI French Tutor
               </h1>
@@ -265,6 +469,13 @@ export default function AITutor() {
                 Practice conversational French with your AI tutor
               </p>
             </div>
+            <button
+              onClick={() => navigate('/conversations/history')}
+              className="p-2 rounded-xl text-warm-500 hover:text-warm-700 hover:bg-warm-100 dark:hover:bg-warm-700 transition-colors"
+              aria-label="Conversation history"
+            >
+              <Clock size={20} />
+            </button>
           </div>
         </motion.div>
 
@@ -320,6 +531,10 @@ export default function AITutor() {
   }
 
   // ----------- STATE 2: Active Chat -----------
+  const displayTitle = selectedTopic ? selectedTopic.titleFr : conversationTitle;
+  const displaySubtitle = selectedTopic ? selectedTopic.title : undefined;
+  const displayDifficulty = selectedTopic?.difficulty ?? conversationDifficulty;
+
   return (
     <div className="flex flex-col h-[calc(100vh-5rem)] -mx-4 -mt-4 sm:-mx-6 sm:-mt-6">
       {/* Chat header */}
@@ -337,19 +552,26 @@ export default function AITutor() {
         </button>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-warm-800 dark:text-warm-100 truncate text-sm">
-            {selectedTopic ? selectedTopic.titleFr : 'Free Conversation'}
+            {displayTitle}
           </p>
-          {selectedTopic && (
+          {displaySubtitle && (
             <p className="text-xs text-warm-500 dark:text-warm-400">
-              {selectedTopic.title}
+              {displaySubtitle}
             </p>
           )}
         </div>
-        {selectedTopic && (
+        {displayDifficulty != null && (
           <Badge variant="amber">
-            <DifficultyStars level={selectedTopic.difficulty} />
+            <DifficultyStars level={displayDifficulty as 1 | 2 | 3} />
           </Badge>
         )}
+        <button
+          onClick={() => navigate('/conversations/history')}
+          className="p-2 rounded-xl text-warm-500 hover:text-warm-700 hover:bg-warm-100 dark:hover:bg-warm-700 transition-colors"
+          aria-label="Conversation history"
+        >
+          <Clock size={18} />
+        </button>
       </motion.div>
 
       {/* Messages area */}
