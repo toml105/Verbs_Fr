@@ -10,6 +10,9 @@ import Practice from './pages/Practice';
 import Progress from './pages/Progress';
 import Settings from './pages/Settings';
 import ConfusingPairs from './pages/ConfusingPairs';
+import ListeningPractice from './pages/ListeningPractice';
+import SpeakingPractice from './pages/SpeakingPractice';
+import ConversationPractice from './pages/ConversationPractice';
 import Welcome from './components/onboarding/Welcome';
 import PlacementTest from './components/onboarding/PlacementTest';
 
@@ -57,6 +60,9 @@ function AppRoutes() {
           <Route path="/progress" element={<Progress />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/confusing-pairs" element={<ConfusingPairs />} />
+          <Route path="/listening" element={<ListeningPractice />} />
+          <Route path="/speaking" element={<SpeakingPractice />} />
+          <Route path="/conversations" element={<ConversationPractice />} />
         </Route>
       </Routes>
     </BrowserRouter>

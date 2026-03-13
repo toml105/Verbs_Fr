@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
-import { Flame, BookOpen, Dumbbell, ChevronRight, Sparkles, Star, Target, Zap } from 'lucide-react';
+import { Flame, BookOpen, Dumbbell, ChevronRight, Sparkles, Star, Target, Zap, Ear, MessageCircle } from 'lucide-react';
 import { useProgress } from '../context/UserProgressContext';
 import Card from '../components/ui/Card';
 import ProgressRing from '../components/ui/ProgressRing';
@@ -275,6 +275,50 @@ export default function Dashboard() {
           <Dumbbell size={20} className="mr-2" />
           Start Practicing
         </Button>
+      </motion.div>
+
+      {/* Speaking & Listening */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.37 }}
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <Card
+            hover
+            padding="md"
+            onClick={() => navigate('/listening')}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/30">
+                <Ear size={18} className="text-blue-500" />
+              </div>
+            </div>
+            <p className="font-semibold text-warm-800 dark:text-warm-100">
+              Listening
+            </p>
+            <p className="text-sm text-warm-500 dark:text-warm-400 mt-0.5">
+              Train your ear
+            </p>
+          </Card>
+          <Card
+            hover
+            padding="md"
+            onClick={() => navigate('/conversations')}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/30">
+                <MessageCircle size={18} className="text-emerald-500" />
+              </div>
+            </div>
+            <p className="font-semibold text-warm-800 dark:text-warm-100">
+              Conversations
+            </p>
+            <p className="text-sm text-warm-500 dark:text-warm-400 mt-0.5">
+              Practice dialogues
+            </p>
+          </Card>
+        </div>
       </motion.div>
 
       {/* Explore verbs */}
