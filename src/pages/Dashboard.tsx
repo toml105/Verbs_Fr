@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
-import { Flame, BookOpen, Dumbbell, ChevronRight, Sparkles, Star, Target, Zap, Ear, MessageCircle } from 'lucide-react';
+import { Flame, BookOpen, Dumbbell, ChevronRight, Sparkles, Star, Target, Zap, Ear, MessageCircle, GraduationCap } from 'lucide-react';
 import { useProgress } from '../context/UserProgressContext';
 import Card from '../components/ui/Card';
 import ProgressRing from '../components/ui/ProgressRing';
@@ -9,18 +9,21 @@ import ProgressBar from '../components/ui/ProgressBar';
 import Button from '../components/ui/Button';
 import HeatMap from '../components/ui/HeatMap';
 import { verbs } from '../data/verbs';
+import { grammarLessons } from '../data/grammarLessons';
 import { getLevelFromXP } from '../lib/xp';
 import { getTodayChallenge } from '../data/dailyChallenges';
 import { todayString } from '../lib/utils';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { userData, getOverallMastery, getDueReviewCount } = useProgress();
+  const { userData, getOverallMastery, getDueReviewCount, getDueGrammarLessons } = useProgress();
   const { stats } = userData;
 
   const overallMastery = getOverallMastery();
   const dueCount = getDueReviewCount();
+  const dueGrammarCount = getDueGrammarLessons().length;
   const verbsStarted = Object.keys(userData.verbProgress).length;
+  const grammarCompleted = Object.values(userData.grammarProgress).filter(p => p.completed).length;
   const dailyProgress = Math.min(
     100,
     Math.round((stats.todayReviews / stats.dailyGoal) * 100)
@@ -210,8 +213,8 @@ export default function Dashboard() {
               Review
             </p>
             <p className="text-sm text-warm-500 dark:text-warm-400 mt-0.5">
-              {dueCount > 0
-                ? `${dueCount} items due`
+              {dueCount > 0 || dueGrammarCount > 0
+                ? `${dueCount > 0 ? `${dueCount} verb${dueCount !== 1 ? 's' : ''}` : ''}${dueCount > 0 && dueGrammarCount > 0 ? ' + ' : ''}${dueGrammarCount > 0 ? `${dueGrammarCount} grammar` : ''} due`
                 : 'All caught up!'}
             </p>
           </Card>
@@ -321,11 +324,41 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      {/* Explore verbs */}
+      {/* Grammar progress */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
+      >
+        <Card
+          hover
+          onClick={() => navigate('/grammar')}
+          className="flex items-center justify-between"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30">
+              <GraduationCap size={20} className="text-blue-500" />
+            </div>
+            <div>
+              <p className="font-semibold text-warm-800 dark:text-warm-100">
+                Grammar
+              </p>
+              <p className="text-sm text-warm-500 dark:text-warm-400">
+                {grammarCompleted > 0
+                  ? `${grammarCompleted}/${grammarLessons.length} lessons completed`
+                  : `${grammarLessons.length} lessons to master`}
+              </p>
+            </div>
+          </div>
+          <ChevronRight size={20} className="text-warm-400" />
+        </Card>
+      </motion.div>
+
+      {/* Explore verbs */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.43 }}
       >
         <Card
           hover

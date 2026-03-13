@@ -1,11 +1,12 @@
 import type { UserData } from '../types';
 
 const STORAGE_KEY = 'conjugo_user_data';
-const CURRENT_VERSION = 2;
+const CURRENT_VERSION = 3;
 
 export function getDefaultUserData(): UserData {
   return {
     verbProgress: {},
+    grammarProgress: {},
     stats: {
       currentStreak: 0,
       longestStreak: 0,
@@ -52,8 +53,11 @@ function migrate(data: UserData): UserData {
     data.settings.audioEnabled = data.settings.audioEnabled ?? defaults.settings.audioEnabled;
     data.settings.audioAutoPlay = data.settings.audioAutoPlay ?? defaults.settings.audioAutoPlay;
     data.settings.audioRate = data.settings.audioRate ?? defaults.settings.audioRate;
-    data.version = CURRENT_VERSION;
   }
+  if (!data.version || data.version < 3) {
+    data.grammarProgress = data.grammarProgress ?? {};
+  }
+  data.version = CURRENT_VERSION;
   return data;
 }
 

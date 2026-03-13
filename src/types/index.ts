@@ -33,6 +33,55 @@ export interface ThematicGroup {
   description: string;
 }
 
+// Grammar types
+export type GrammarExerciseType = 'fill-blank' | 'multiple-choice' | 'error-correction' | 'reorder' | 'translation' | 'rule-application';
+
+export interface GrammarExercise {
+  id: string;
+  lessonId: string;
+  type: GrammarExerciseType;
+  prompt: string;
+  correctAnswer: string;
+  options?: string[];           // for multiple-choice
+  words?: string[];             // for reorder exercises
+  explanation: string;          // shown after answering
+  hint?: string;
+}
+
+export interface GrammarRule {
+  title: string;
+  formula?: string;            // e.g. "ne + verb + pas"
+  explanation: string;
+  examples: { french: string; english: string }[];
+}
+
+export interface GrammarLesson {
+  id: string;
+  title: string;
+  shortDescription: string;
+  tier: 1 | 2 | 3;
+  order: number;               // position within tier
+  introduction: string;
+  rules: GrammarRule[];
+  tips: string[];              // common mistakes to avoid
+  relatedLessons?: string[];   // IDs of related lessons
+}
+
+export interface GrammarLessonProgress {
+  lessonId: string;
+  totalAttempts: number;
+  correctAttempts: number;
+  bestScore: number;           // 0-100
+  masteryLevel: 0 | 1 | 2 | 3 | 4 | 5;
+  lastPracticed: string;
+  completed: boolean;          // scored 60%+ at least once
+  // SRS fields
+  easeFactor: number;
+  interval: number;
+  repetitions: number;
+  nextReview: string;
+}
+
 // User progress types
 export interface TenseProgress {
   easeFactor: number;
@@ -76,6 +125,7 @@ export interface UserSettings {
 
 export interface UserData {
   verbProgress: Record<string, VerbProgress>;
+  grammarProgress: Record<string, GrammarLessonProgress>;
   stats: UserStats;
   settings: UserSettings;
   version: number;

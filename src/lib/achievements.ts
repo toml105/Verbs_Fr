@@ -5,7 +5,7 @@ export interface Achievement {
   name: string;
   description: string;
   icon: string;
-  category: 'streak' | 'mastery' | 'volume' | 'speed' | 'tense' | 'explorer';
+  category: 'streak' | 'mastery' | 'volume' | 'speed' | 'tense' | 'explorer' | 'grammar';
   check: (data: UserData) => boolean;
 }
 
@@ -201,6 +201,40 @@ export const ACHIEVEMENTS: Achievement[] = [
     icon: 'Calendar',
     category: 'explorer',
     check: (d) => (d.completedChallenges?.length ?? 0) >= 7,
+  },
+
+  // Grammar
+  {
+    id: 'grammar-beginner',
+    name: 'Grammar Beginner',
+    description: 'Complete your first grammar lesson',
+    icon: 'BookOpen',
+    category: 'grammar',
+    check: (d) => Object.values(d.grammarProgress ?? {}).filter(p => p.completed).length >= 1,
+  },
+  {
+    id: 'grammar-scholar',
+    name: 'Grammar Scholar',
+    description: 'Complete 8 grammar lessons',
+    icon: 'GraduationCap',
+    category: 'grammar',
+    check: (d) => Object.values(d.grammarProgress ?? {}).filter(p => p.completed).length >= 8,
+  },
+  {
+    id: 'grammar-expert',
+    name: 'Grammar Expert',
+    description: 'Complete 16 grammar lessons',
+    icon: 'Brain',
+    category: 'grammar',
+    check: (d) => Object.values(d.grammarProgress ?? {}).filter(p => p.completed).length >= 16,
+  },
+  {
+    id: 'grammarian',
+    name: 'Grammarian',
+    description: 'Complete all 24 grammar lessons',
+    icon: 'Crown',
+    category: 'grammar',
+    check: (d) => Object.values(d.grammarProgress ?? {}).filter(p => p.completed).length >= 24,
   },
 ];
 

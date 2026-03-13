@@ -13,6 +13,10 @@ import ConfusingPairs from './pages/ConfusingPairs';
 import ListeningPractice from './pages/ListeningPractice';
 import SpeakingPractice from './pages/SpeakingPractice';
 import ConversationPractice from './pages/ConversationPractice';
+import Learn from './pages/Learn';
+import Grammar from './pages/Grammar';
+import GrammarLesson from './pages/GrammarLesson';
+import GrammarPractice from './pages/GrammarPractice';
 import Welcome from './components/onboarding/Welcome';
 import PlacementTest from './components/onboarding/PlacementTest';
 
@@ -54,8 +58,12 @@ function AppRoutes() {
       <Routes>
         <Route element={<AppShell />}>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/learn" element={<Learn />} />
           <Route path="/verbs" element={<VerbExplorer />} />
           <Route path="/verbs/:verbId" element={<VerbDetail />} />
+          <Route path="/grammar" element={<Grammar />} />
+          <Route path="/grammar/:lessonId" element={<GrammarLesson />} />
+          <Route path="/grammar/:lessonId/practice" element={<GrammarPractice />} />
           <Route path="/practice" element={<Practice />} />
           <Route path="/progress" element={<Progress />} />
           <Route path="/settings" element={<Settings />} />

@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { UserData, TenseProgress, SRSGrade, DailyActivity } from '../types';
+import type { UserData, TenseProgress, SRSGrade, DailyActivity, GrammarLessonProgress } from '../types';
 import { loadUserData, saveUserData, getDefaultUserData, clearUserData } from '../lib/storage';
 import { calculateSRS, calculateMasteryLevel, getDefaultTenseProgress, isDueForReview } from '../lib/srs';
 import { todayString } from '../lib/utils';
@@ -25,7 +25,8 @@ type Action =
   | { type: 'COMPLETE_DAILY_CHALLENGE'; challengeId: string }
   | { type: 'COMPLETE_ONBOARDING'; level?: string }
   | { type: 'UPDATE_SETTINGS'; settings: Partial<UserData['settings']> }
-  | { type: 'UNLOCK_ACHIEVEMENTS'; ids: string[] };
+  | { type: 'UNLOCK_ACHIEVEMENTS'; ids: string[] }
+  | { type: 'RECORD_GRAMMAR_RESULT'; lessonId: string; score: number; correct: number; total: number };
 
 function updateDailyActivity(state: UserData, xpEarned: number, isCorrect: boolean): DailyActivity[] {
   const today = todayString();
@@ -217,6 +218,98 @@ function reducer(state: UserData, action: Action): UserData {
       };
     }
 
+    case 'RECORD_GRAMMAR_RESULT': {
+      const { lessonId, score, correct, total } = action;
+      const grammarProgress = { ...state.grammarProgress };
+      const prev: GrammarLessonProgress = grammarProgress[lessonId] ?? {
+        lessonId,
+        totalAttempts: 0,
+        correctAttempts: 0,
+        bestScore: 0,
+        masteryLevel: 0,
+        lastPracticed: '',
+        completed: false,
+        easeFactor: 2.5,
+        interval: 0,
+        repetitions: 0,
+        nextReview: todayString(),
+      };
+
+      const updated = { ...prev };
+      updated.totalAttempts += total;
+      updated.correctAttempts += correct;
+      updated.lastPracticed = todayString();
+      if (score > updated.bestScore) updated.bestScore = score;
+      if (score >= 60) updated.completed = true;
+
+      // SRS: grade based on score
+      const srsGrade: SRSGrade = score >= 90 ? 5 : score >= 75 ? 4 : score >= 60 ? 3 : score >= 40 ? 2 : 0;
+      const srsResult = calculateSRS(
+        { ...prev, lastReview: prev.lastPracticed } as TenseProgress,
+        srsGrade
+      );
+      updated.easeFactor = srsResult.easeFactor;
+      updated.interval = srsResult.interval;
+      updated.repetitions = srsResult.repetitions;
+      updated.nextReview = srsResult.nextReview;
+
+      // Calculate mastery level
+      const accuracy = updated.totalAttempts > 0 ? updated.correctAttempts / updated.totalAttempts : 0;
+      if (updated.totalAttempts === 0) updated.masteryLevel = 0;
+      else if (updated.repetitions <= 1) updated.masteryLevel = 1;
+      else if (updated.interval >= 30 && accuracy >= 0.9 && updated.repetitions >= 8) updated.masteryLevel = 5;
+      else if (updated.interval >= 14 && accuracy >= 0.8 && updated.repetitions >= 5) updated.masteryLevel = 4;
+      else if (updated.interval >= 6 && accuracy >= 0.7 && updated.repetitions >= 3) updated.masteryLevel = 3;
+      else if (updated.repetitions >= 2) updated.masteryLevel = 2;
+      else updated.masteryLevel = 1;
+
+      grammarProgress[lessonId] = updated;
+
+      // XP: award per correct answer
+      const xpPerAnswer = 10;
+      const xpEarned = correct * xpPerAnswer;
+
+      // Update stats
+      const today = todayString();
+      const stats = { ...state.stats };
+      stats.totalReviews += total;
+      stats.todayReviews += total;
+
+      if (stats.lastPracticeDate !== today) {
+        if (stats.lastPracticeDate) {
+          const last = new Date(stats.lastPracticeDate);
+          const now = new Date(today);
+          const diff = Math.floor((now.getTime() - last.getTime()) / 86400000);
+          if (diff === 1) stats.currentStreak += 1;
+          else if (diff > 1) stats.currentStreak = 1;
+        } else {
+          stats.currentStreak = 1;
+        }
+        stats.lastPracticeDate = today;
+        stats.todayDate = today;
+      }
+      if (stats.currentStreak > stats.longestStreak) stats.longestStreak = stats.currentStreak;
+
+      let totalXP = state.totalXP + xpEarned;
+      const wasGoalMet = state.stats.todayReviews >= stats.dailyGoal;
+      const isGoalNowMet = stats.todayReviews >= stats.dailyGoal;
+      if (!wasGoalMet && isGoalNowMet) totalXP += XP_DAILY_GOAL_BONUS;
+
+      const activityHistory = updateDailyActivity(
+        { ...state, stats },
+        xpEarned,
+        correct > total / 2
+      );
+
+      return {
+        ...state,
+        grammarProgress,
+        stats,
+        totalXP,
+        activityHistory,
+      };
+    }
+
     default:
       return state;
   }
@@ -225,12 +318,15 @@ function reducer(state: UserData, action: Action): UserData {
 interface ProgressContextType {
   userData: UserData;
   recordAnswer: (verbId: string, tense: string, grade: SRSGrade, quizType?: string) => void;
+  recordGrammarResult: (lessonId: string, score: number, correct: number, total: number) => void;
   setDailyGoal: (goal: number) => void;
   resetProgress: () => void;
   getVerbMastery: (verbId: string) => number;
   getOverallMastery: () => number;
+  getGrammarMastery: () => number;
   getDueReviewCount: () => number;
   getDueItems: () => { verbId: string; tense: string }[];
+  getDueGrammarLessons: () => string[];
   awardBonusXP: (amount: number, reason: string) => void;
   recordPerfectSession: () => void;
   recordSpeedDrill: (score: number) => void;
@@ -292,6 +388,13 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'COMPLETE_DAILY_CHALLENGE', challengeId });
   }, []);
 
+  const recordGrammarResult = useCallback(
+    (lessonId: string, score: number, correct: number, total: number) => {
+      dispatch({ type: 'RECORD_GRAMMAR_RESULT', lessonId, score, correct, total });
+    },
+    []
+  );
+
   const completeOnboarding = useCallback((level?: string) => {
     dispatch({ type: 'COMPLETE_ONBOARDING', level });
   }, []);
@@ -335,6 +438,20 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     return Math.round((totalMastery / (totalItems * 5)) * 100);
   }, [userData.verbProgress]);
 
+  const getGrammarMastery = useCallback((): number => {
+    const entries = Object.values(userData.grammarProgress);
+    if (entries.length === 0) return 0;
+    const totalMastery = entries.reduce((sum, lp) => sum + lp.masteryLevel, 0);
+    return Math.round((totalMastery / (entries.length * 5)) * 100);
+  }, [userData.grammarProgress]);
+
+  const getDueGrammarLessons = useCallback((): string[] => {
+    const today = new Date().toISOString().split('T')[0];
+    return Object.values(userData.grammarProgress)
+      .filter(lp => lp.nextReview && lp.nextReview <= today)
+      .map(lp => lp.lessonId);
+  }, [userData.grammarProgress]);
+
   const getDueItems = useCallback((): { verbId: string; tense: string }[] => {
     const items: { verbId: string; tense: string }[] = [];
     for (const [verbId, verbProg] of Object.entries(userData.verbProgress)) {
@@ -356,12 +473,15 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       value={{
         userData,
         recordAnswer,
+        recordGrammarResult,
         setDailyGoal,
         resetProgress,
         getVerbMastery,
         getOverallMastery,
+        getGrammarMastery,
         getDueReviewCount,
         getDueItems,
+        getDueGrammarLessons,
         awardBonusXP,
         recordPerfectSession,
         recordSpeedDrill,
