@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { motion } from 'framer-motion';
-import { Moon, Target, Trash2, Info, Volume2 } from 'lucide-react';
+import { Moon, Target, Trash2, Info, Volume2, User, LogOut, ArrowRight } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import { useProgress } from '../context/UserProgressContext';
 import Card from '../components/ui/Card';
 import Toggle from '../components/ui/Toggle';
@@ -18,6 +20,7 @@ const SPEECH_RATES = [
 
 export default function Settings() {
   const { darkMode, toggleDarkMode } = useTheme();
+  const { user, signOut } = useAuth();
   const { userData, setDailyGoal, resetProgress, updateSettings } = useProgress();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const audioSupported = isAudioSupported();
@@ -28,6 +31,57 @@ export default function Settings() {
         <h1 className="text-2xl font-bold text-warm-800 dark:text-warm-100">
           Settings
         </h1>
+      </motion.div>
+
+      {/* Account */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+      >
+        <Card>
+          <h2 className="font-semibold text-warm-800 dark:text-warm-100 mb-4 flex items-center gap-2">
+            <User size={18} />
+            Account
+          </h2>
+          {user ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-coral-500 text-white flex items-center justify-center font-semibold text-sm uppercase">
+                  {user.email?.charAt(0) ?? '?'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-warm-800 dark:text-warm-100 truncate">
+                    {user.email}
+                  </p>
+                  <p className="text-xs text-warm-400">Signed in</p>
+                </div>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => signOut()}
+                className="w-full gap-2"
+              >
+                <LogOut size={16} />
+                Sign Out
+              </Button>
+            </div>
+          ) : (
+            <Link to="/auth" className="block">
+              <div className="flex items-center justify-between p-3 -m-1 rounded-xl bg-coral-50 dark:bg-coral-900/20 border border-coral-100 dark:border-coral-800 hover:bg-coral-100 dark:hover:bg-coral-900/30 transition-colors">
+                <div>
+                  <p className="text-sm font-medium text-warm-800 dark:text-warm-100">
+                    Sign in to sync progress
+                  </p>
+                  <p className="text-xs text-warm-500 dark:text-warm-400 mt-0.5">
+                    Keep your data across devices
+                  </p>
+                </div>
+                <ArrowRight size={18} className="text-coral-500 flex-shrink-0" />
+              </div>
+            </Link>
+          )}
+        </Card>
       </motion.div>
 
       {/* Appearance */}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router';
 import { ThemeProvider } from './context/ThemeContext';
+import { AuthProvider } from './context/AuthContext';
 import { ProgressProvider, useProgress } from './context/UserProgressContext';
 import AppShell from './components/layout/AppShell';
 import Dashboard from './pages/Dashboard';
@@ -19,6 +20,7 @@ import GrammarLesson from './pages/GrammarLesson';
 import GrammarPractice from './pages/GrammarPractice';
 import Welcome from './components/onboarding/Welcome';
 import PlacementTest from './components/onboarding/PlacementTest';
+import Auth from './pages/Auth';
 
 function AppRoutes() {
   const { userData, completeOnboarding } = useProgress();
@@ -56,6 +58,8 @@ function AppRoutes() {
   return (
     <BrowserRouter basename="/Verbs_Fr">
       <Routes>
+        {/* Auth page renders without AppShell (no bottom nav) */}
+        <Route path="/auth" element={<Auth />} />
         <Route element={<AppShell />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/learn" element={<Learn />} />
@@ -80,9 +84,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <ThemeProvider>
-      <ProgressProvider>
-        <AppRoutes />
-      </ProgressProvider>
+      <AuthProvider>
+        <ProgressProvider>
+          <AppRoutes />
+        </ProgressProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
