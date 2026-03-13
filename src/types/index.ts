@@ -186,6 +186,15 @@ export interface SRSResult {
 
 export type SRSGrade = 0 | 1 | 2 | 3 | 4 | 5;
 
+// Weakness Analysis types
+export interface WeaknessReport {
+  weakVerbs: { verbId: string; accuracy: number; attempts: number }[];
+  weakTenses: { tense: string; accuracy: number; attempts: number }[];
+  commonMistakes: { pattern: string; frequency: number; examples: string[] }[];
+  recommendedFocus: string[];
+  overallLevel: 'beginner' | 'intermediate' | 'advanced';
+}
+
 // AI Tutor types
 export interface AIMessage {
   id: string;

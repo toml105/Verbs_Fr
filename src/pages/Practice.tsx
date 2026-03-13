@@ -1,10 +1,12 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Sparkles, BookOpen, Shuffle, Timer, AlertTriangle, Ear, Mic, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Sparkles, BookOpen, Shuffle, Timer, AlertTriangle, Ear, Mic, MessageCircle, Brain } from 'lucide-react';
 import { verbs } from '../data/verbs';
 import { TENSES } from '../data/tenses';
 import { useProgress } from '../context/UserProgressContext';
+import { useAI } from '../context/AIContext';
+import { analyzeWeaknesses } from '../lib/weaknessAnalyzer';
 import { generateQuizQuestions, generateReviewQuestions } from '../lib/quizEngine';
 import { gradeFromUI } from '../lib/srs';
 import type { QuizAnswer, QuizQuestion } from '../types';
@@ -19,7 +21,15 @@ type PracticeMode = 'select' | 'quiz' | 'result' | 'speed-drill' | 'confusing-pa
 export default function Practice() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { recordAnswer, getDueItems, recordPerfectSession, recordSpeedDrill } = useProgress();
+  const { userData, recordAnswer, getDueItems, recordPerfectSession, recordSpeedDrill } = useProgress();
+  const { isOllamaAvailable } = useAI();
+
+  // Get quick weakness summary for Smart Practice card
+  const weaknessSummary = useMemo(() => {
+    const report = analyzeWeaknesses(userData);
+    const focus = report.recommendedFocus.slice(0, 2);
+    return focus.length > 0 ? focus.join(', ') : 'personalized exercises';
+  }, [userData]);
 
   const [mode, setMode] = useState<PracticeMode>('select');
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -181,6 +191,30 @@ export default function Practice() {
         <p className="text-warm-500 dark:text-warm-400 mt-1">
           Choose your practice mode
         </p>
+      </motion.div>
+
+      {/* Smart Practice - AI-powered */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+        <Card hover padding="md" onClick={() => navigate('/smart-practice')}>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-coral-50 to-violet-50 dark:from-coral-900/30 dark:to-violet-900/30">
+              <Brain size={22} className="text-coral-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="font-semibold text-warm-800 dark:text-warm-100">Smart Practice</p>
+                {isOllamaAvailable && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gradient-to-r from-violet-100 to-coral-100 dark:from-violet-900/40 dark:to-coral-900/40 text-violet-600 dark:text-violet-400 uppercase tracking-wide">
+                    AI
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-warm-500 mt-0.5 truncate">
+                Focus: {weaknessSummary}
+              </p>
+            </div>
+          </div>
+        </Card>
       </motion.div>
 
       {/* Quick modes - 2x2 grid */}

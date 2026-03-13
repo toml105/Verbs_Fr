@@ -21,6 +21,7 @@ import Learn from './pages/Learn';
 import Grammar from './pages/Grammar';
 import GrammarLesson from './pages/GrammarLesson';
 import GrammarPractice from './pages/GrammarPractice';
+import SmartPractice from './pages/SmartPractice';
 import Welcome from './components/onboarding/Welcome';
 import PlacementTest from './components/onboarding/PlacementTest';
 import Auth from './pages/Auth';
@@ -72,6 +73,7 @@ function AppRoutes() {
           <Route path="/grammar/:lessonId" element={<GrammarLesson />} />
           <Route path="/grammar/:lessonId/practice" element={<GrammarPractice />} />
           <Route path="/practice" element={<Practice />} />
+          <Route path="/smart-practice" element={<SmartPractice />} />
           <Route path="/progress" element={<Progress />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/confusing-pairs" element={<ConfusingPairs />} />
