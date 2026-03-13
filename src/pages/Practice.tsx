@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Sparkles, BookOpen, Shuffle, Timer, AlertTriangle, Ear, Mic, MessageCircle, Brain } from 'lucide-react';
+import { ArrowLeft, Sparkles, BookOpen, Shuffle, Timer, AlertTriangle, Ear, Mic, MessageCircle, Brain, PenTool } from 'lucide-react';
 import { verbs } from '../data/verbs';
 import { TENSES } from '../data/tenses';
 import { useProgress } from '../context/UserProgressContext';
@@ -262,7 +262,7 @@ export default function Practice() {
         <h2 className="text-sm font-semibold text-warm-500 dark:text-warm-400 mb-2 uppercase tracking-wide">
           Speaking & Listening
         </h2>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <Card hover padding="md" className="h-full" onClick={() => navigate('/listening')}>
             <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/30 w-fit mb-2">
               <Ear size={20} className="text-blue-500" />
@@ -283,6 +283,13 @@ export default function Practice() {
             </div>
             <p className="font-semibold text-warm-800 dark:text-warm-100 text-sm">Chat</p>
             <p className="text-xs text-warm-500 mt-0.5">Dialogues</p>
+          </Card>
+          <Card hover padding="md" className="h-full" onClick={() => navigate('/sentence-builder')}>
+            <div className="p-2 rounded-xl bg-violet-50 dark:bg-violet-900/30 w-fit mb-2">
+              <PenTool size={20} className="text-violet-500" />
+            </div>
+            <p className="font-semibold text-warm-800 dark:text-warm-100 text-sm">Sentences</p>
+            <p className="text-xs text-warm-500 mt-0.5">Build sentences</p>
           </Card>
         </div>
       </motion.div>

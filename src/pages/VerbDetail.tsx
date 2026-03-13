@@ -1,15 +1,18 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Dumbbell, Volume2, Lightbulb, GitBranch, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Dumbbell, Volume2, Lightbulb, GitBranch, ChevronRight, Brain } from 'lucide-react';
 import { verbs } from '../data/verbs';
 import { examples } from '../data/examples';
 import { useProgress } from '../context/UserProgressContext';
+import { useAI } from '../context/AIContext';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import ProgressRing from '../components/ui/ProgressRing';
 import ConjugationTable from '../components/verbs/ConjugationTable';
 import ExampleSentence from '../components/verbs/ExampleSentence';
+import GrammarHelper from '../components/ai/GrammarHelper';
 import { getGroupLabel, getDifficultyLabel } from '../lib/utils';
 import { speak, isAudioSupported } from '../lib/audio';
 import { getVerbFamily } from '../data/verbFamilies';
@@ -19,6 +22,8 @@ export default function VerbDetail() {
   const { verbId } = useParams();
   const navigate = useNavigate();
   const { getVerbMastery, userData } = useProgress();
+  const { isOllamaAvailable } = useAI();
+  const [showGrammarHelper, setShowGrammarHelper] = useState(false);
 
   const verb = verbs.find((v) => v.id === verbId);
   if (!verb) {
@@ -193,6 +198,27 @@ export default function VerbDetail() {
           </Card>
         </motion.div>
       )}
+
+      {/* Floating Ask AI button */}
+      {isOllamaAvailable && (
+        <motion.button
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.5, type: 'spring' }}
+          onClick={() => setShowGrammarHelper(true)}
+          className="fixed bottom-20 right-4 z-40 flex items-center gap-2 px-4 py-3 rounded-full bg-coral-500 text-white shadow-lg shadow-coral-500/30 hover:bg-coral-600 active:bg-coral-700 transition-colors"
+        >
+          <Brain size={18} />
+          <span className="text-sm font-medium">Ask AI</span>
+        </motion.button>
+      )}
+
+      {/* Grammar Helper bottom sheet */}
+      <GrammarHelper
+        context={`The French verb "${verb.infinitive}" (${verb.english}) - ${getGroupLabel(verb.group)}`}
+        isOpen={showGrammarHelper}
+        onClose={() => setShowGrammarHelper(false)}
+      />
     </div>
   );
 }

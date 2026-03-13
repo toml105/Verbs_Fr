@@ -1,12 +1,14 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
-import { ArrowLeft, BookOpen, Dumbbell, Lightbulb, ChevronRight } from 'lucide-react';
+import { ArrowLeft, BookOpen, Dumbbell, Lightbulb, ChevronRight, Brain } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import ProgressBar from '../components/ui/ProgressBar';
+import GrammarHelper from '../components/ai/GrammarHelper';
 import { useProgress } from '../context/UserProgressContext';
+import { useAI } from '../context/AIContext';
 import { grammarLessons } from '../data/grammarLessons';
 import { getMasteryLabel } from '../lib/srs';
 
@@ -16,7 +18,9 @@ export default function GrammarLesson() {
   const { lessonId } = useParams<{ lessonId: string }>();
   const navigate = useNavigate();
   const { userData } = useProgress();
+  const { isOllamaAvailable } = useAI();
   const [activeTab, setActiveTab] = useState<Tab>('learn');
+  const [showGrammarHelper, setShowGrammarHelper] = useState(false);
 
   const lesson = grammarLessons.find(l => l.id === lessonId);
   const progress = lessonId ? userData.grammarProgress[lessonId] : undefined;
@@ -249,6 +253,27 @@ export default function GrammarLesson() {
           )}
         </motion.div>
       )}
+
+      {/* Floating Ask AI button */}
+      {isOllamaAvailable && (
+        <motion.button
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.5, type: 'spring' }}
+          onClick={() => setShowGrammarHelper(true)}
+          className="fixed bottom-20 right-4 z-40 flex items-center gap-2 px-4 py-3 rounded-full bg-coral-500 text-white shadow-lg shadow-coral-500/30 hover:bg-coral-600 active:bg-coral-700 transition-colors"
+        >
+          <Brain size={18} />
+          <span className="text-sm font-medium">Ask AI</span>
+        </motion.button>
+      )}
+
+      {/* Grammar Helper bottom sheet */}
+      <GrammarHelper
+        context={`${lesson.title} - ${lesson.introduction}`}
+        isOpen={showGrammarHelper}
+        onClose={() => setShowGrammarHelper(false)}
+      />
     </div>
   );
 }

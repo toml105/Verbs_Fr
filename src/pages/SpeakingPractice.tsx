@@ -1,17 +1,20 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Mic, MicOff, Volume2, RotateCcw, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Mic, MicOff, Volume2, RotateCcw, CheckCircle, XCircle, Sparkles } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import ProgressBar from '../components/ui/ProgressBar';
+import ProgressRing from '../components/ui/ProgressRing';
 import { verbs } from '../data/verbs';
 import { conjugations } from '../data/conjugations';
 import { examples } from '../data/examples';
 import { TENSES } from '../data/tenses';
 import { speak, isAudioSupported } from '../lib/audio';
 import { isSpeechRecognitionSupported, listenForSpeech, compareSpeech } from '../lib/speechRecognition';
+import { analyzeSpeech, type SpeechFeedback } from '../lib/aiSpeechAnalyzer';
 import { useProgress } from '../context/UserProgressContext';
+import { useAI } from '../context/AIContext';
 import { gradeFromUI } from '../lib/srs';
 import { PRONOUNS, shuffleArray } from '../lib/utils';
 
@@ -80,6 +83,7 @@ function generateSentenceReadQuestions(count: number): SpeakingQuestion[] {
 export default function SpeakingPractice() {
   const navigate = useNavigate();
   const { recordAnswer, userData } = useProgress();
+  const { isOllamaAvailable, chat } = useAI();
   const [mode, setMode] = useState<SpeakingMode>('select');
   const [questions, setQuestions] = useState<SpeakingQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -90,6 +94,8 @@ export default function SpeakingPractice() {
   const [similarity, setSimilarity] = useState(0);
   const [answers, setAnswers] = useState<{ correct: boolean }[]>([]);
   const [showFrench, setShowFrench] = useState(false);
+  const [aiFeedback, setAiFeedback] = useState<SpeechFeedback | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const audioRate = userData.settings.audioRate;
   const speechSupported = isSpeechRecognitionSupported();
@@ -116,6 +122,7 @@ export default function SpeakingPractice() {
     if (isListening || !speechSupported) return;
     setIsListening(true);
     setSpokenText('');
+    setAiFeedback(null);
 
     try {
       const result = await listenForSpeech('fr-FR');
@@ -134,13 +141,26 @@ export default function SpeakingPractice() {
         if (navigator.vibrate) {
           navigator.vibrate(comparison.isMatch ? 10 : [50, 50, 50]);
         }
+
+        // AI-enhanced feedback if available
+        if (isOllamaAvailable) {
+          setIsAnalyzing(true);
+          try {
+            const feedback = await analyzeSpeech(result.transcript, currentQuestion.french, chat);
+            setAiFeedback(feedback);
+          } catch {
+            // AI analysis failed, basic feedback still shows
+          } finally {
+            setIsAnalyzing(false);
+          }
+        }
       }
     } catch {
       // Speech recognition failed silently
     } finally {
       setIsListening(false);
     }
-  }, [isListening, speechSupported, currentQuestion, recordAnswer]);
+  }, [isListening, speechSupported, currentQuestion, recordAnswer, isOllamaAvailable, chat]);
 
   const handlePlayCorrect = useCallback(() => {
     if (!currentQuestion || !audioSupported) return;
@@ -155,6 +175,7 @@ export default function SpeakingPractice() {
       setIsCorrect(false);
       setSimilarity(0);
       setShowFrench(false);
+      setAiFeedback(null);
     } else {
       setMode('result');
     }
@@ -384,31 +405,137 @@ export default function SpeakingPractice() {
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`p-3 rounded-xl mb-4 ${
+                className="mb-4 space-y-3"
+              >
+                {/* Basic feedback bar */}
+                <div className={`p-3 rounded-xl ${
                   isCorrect
                     ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
                     : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  {isCorrect ? <CheckCircle size={18} /> : <XCircle size={18} />}
-                  <p className="font-medium">
-                    {isCorrect ? 'Great pronunciation!' : 'Not quite right'}
-                  </p>
+                }`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    {isCorrect ? <CheckCircle size={18} /> : <XCircle size={18} />}
+                    <p className="font-medium">
+                      {isCorrect ? 'Great pronunciation!' : 'Not quite right'}
+                    </p>
+                  </div>
+                  {!aiFeedback && (
+                    <p className="text-sm">
+                      Match: {Math.round(similarity * 100)}%
+                    </p>
+                  )}
+                  {!isCorrect && !aiFeedback && (
+                    <p className="text-sm mt-1">
+                      Expected: <strong>{currentQuestion.french}</strong>
+                    </p>
+                  )}
                 </div>
-                <p className="text-sm">
-                  Match: {Math.round(similarity * 100)}%
-                </p>
-                {!isCorrect && (
-                  <p className="text-sm mt-1">
-                    Expected: <strong>{currentQuestion.french}</strong>
-                  </p>
+
+                {/* AI analyzing indicator */}
+                {isAnalyzing && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex items-center gap-2 p-3 rounded-xl bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400"
+                  >
+                    <Sparkles size={16} className="animate-pulse" />
+                    <p className="text-sm">AI is analyzing your speech...</p>
+                  </motion.div>
                 )}
-                {/* Listen to correct pronunciation */}
-                {audioSupported && (
+
+                {/* AI-enhanced feedback card */}
+                {aiFeedback && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white dark:bg-warm-800 border border-warm-100 dark:border-warm-700 rounded-xl p-4 space-y-3"
+                  >
+                    {/* Score ring */}
+                    <div className="flex items-center gap-4">
+                      <ProgressRing
+                        progress={aiFeedback.overallScore}
+                        size={56}
+                        strokeWidth={5}
+                        color={aiFeedback.overallScore >= 70 ? 'stroke-emerald-500' : aiFeedback.overallScore >= 40 ? 'stroke-amber-500' : 'stroke-red-500'}
+                      >
+                        <span className="text-xs font-bold text-warm-700 dark:text-warm-200">
+                          {aiFeedback.overallScore}
+                        </span>
+                      </ProgressRing>
+                      <div>
+                        <p className="font-medium text-sm text-warm-800 dark:text-warm-100">
+                          AI Feedback
+                        </p>
+                        <p className="text-xs text-warm-500">
+                          {aiFeedback.grammarCorrect ? 'Grammar is correct' : 'Grammar needs work'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Corrections */}
+                    {aiFeedback.corrections.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-warm-500 uppercase tracking-wide mb-1.5">
+                          Corrections
+                        </p>
+                        <div className="space-y-1.5">
+                          {aiFeedback.corrections.map((c, i) => (
+                            <div key={i} className="text-sm bg-red-50 dark:bg-red-900/10 rounded-lg px-2.5 py-1.5">
+                              <span className="line-through text-red-400">{c.original}</span>
+                              {' '}
+                              <span className="text-emerald-600 dark:text-emerald-400 font-medium">{c.corrected}</span>
+                              {c.explanation && (
+                                <p className="text-xs text-warm-500 mt-0.5">{c.explanation}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Pronunciation tips */}
+                    {aiFeedback.pronunciationTips.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-warm-500 uppercase tracking-wide mb-1.5">
+                          Pronunciation Tips
+                        </p>
+                        <ul className="space-y-1">
+                          {aiFeedback.pronunciationTips.map((tip, i) => (
+                            <li key={i} className="text-sm text-warm-600 dark:text-warm-300 flex gap-2">
+                              <span className="text-coral-500 flex-shrink-0">*</span>
+                              {tip}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Encouragement */}
+                    {aiFeedback.encouragement && (
+                      <p className="text-sm italic text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20 rounded-lg px-3 py-2">
+                        {aiFeedback.encouragement}
+                      </p>
+                    )}
+
+                    {/* Listen & Try Again buttons */}
+                    <div className="flex gap-2">
+                      {audioSupported && (
+                        <button
+                          onClick={handlePlayCorrect}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium bg-warm-100 dark:bg-warm-700 text-warm-700 dark:text-warm-200 hover:bg-warm-200 dark:hover:bg-warm-600 transition-colors"
+                        >
+                          <Volume2 size={14} /> Listen Again
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Basic fallback: Listen to correct pronunciation (when no AI feedback) */}
+                {!aiFeedback && !isAnalyzing && audioSupported && (
                   <button
                     onClick={handlePlayCorrect}
-                    className="flex items-center gap-1.5 mt-2 text-sm hover:opacity-80 transition-opacity"
+                    className="flex items-center gap-1.5 text-sm text-warm-500 hover:text-warm-700 dark:hover:text-warm-300 transition-colors"
                   >
                     <Volume2 size={14} /> Listen to correct pronunciation
                   </button>
