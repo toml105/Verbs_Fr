@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: ['claude/french-verb-learning-app-KNs2j', 'main']
+    branches: ['main', 'master', 'claude/french-verb-learning-app-KNs2j']
 
 permissions:
   contents: read
