@@ -147,21 +147,18 @@ export default function Settings() {
                 </select>
               </div>
             ) : !isChecking && !isOllamaAvailable ? (
-              <p className="text-sm text-warm-500 dark:text-warm-400 leading-relaxed">
-                Install Ollama from{' '}
-                <a
-                  href="https://ollama.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-coral-500 hover:text-coral-600 dark:hover:text-coral-400 underline"
+              <div className="space-y-2">
+                <p className="text-sm text-warm-500 dark:text-warm-400 leading-relaxed">
+                  Ollama is not running. Set up local AI to unlock the AI Tutor, Smart Practice, and Sentence Builder.
+                </p>
+                <Link
+                  to="/ai-setup"
+                  className="inline-flex items-center gap-1.5 text-sm text-coral-500 hover:text-coral-600 dark:hover:text-coral-400 font-medium transition-colors"
                 >
-                  ollama.com
-                </a>
-                , then run:{' '}
-                <code className="bg-warm-100 dark:bg-warm-700 px-1.5 py-0.5 rounded text-xs font-mono">
-                  ollama pull mistral
-                </code>
-              </p>
+                  View Setup Guide
+                  <ArrowRight size={14} />
+                </Link>
+              </div>
             ) : null}
           </div>
         </Card>

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
-import { Flame, BookOpen, Dumbbell, ChevronRight, Sparkles, Star, Target, Zap, Ear, MessageCircle, GraduationCap } from 'lucide-react';
+import { Flame, BookOpen, Dumbbell, ChevronRight, Sparkles, Star, Target, Zap, Ear, MessageCircle, GraduationCap, Brain, PenTool } from 'lucide-react';
 import { useProgress } from '../context/UserProgressContext';
 import { useAI } from '../context/AIContext';
 import Card from '../components/ui/Card';
@@ -74,6 +74,11 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* AI status indicator */}
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-warm-50 dark:bg-warm-700/50" title={isOllamaAvailable ? 'AI Online' : 'AI Offline'}>
+            <Sparkles size={14} className={isOllamaAvailable ? 'text-coral-500' : 'text-warm-400'} />
+            <span className={`w-2 h-2 rounded-full ${isOllamaAvailable ? 'bg-emerald-500' : 'bg-warm-300 dark:bg-warm-500'}`} />
+          </div>
           {stats.currentStreak > 0 && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 rounded-full">
               <Flame size={18} className="text-amber-500" />
@@ -193,16 +198,25 @@ export default function Dashboard() {
         </Card>
       </motion.div>
 
-      {/* AI Tutor */}
+      {/* AI-Powered Section */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.18 }}
       >
+        <div className="flex items-center gap-2 mb-2">
+          <Sparkles size={14} className="text-coral-500" />
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-warm-400 dark:text-warm-500">
+            AI-Powered
+          </h2>
+          <div className="flex-1 h-px bg-warm-100 dark:bg-warm-700" />
+        </div>
+
+        {/* AI Tutor */}
         <Card
           hover
           onClick={() => navigate('/ai-tutor')}
-          className="flex items-center justify-between"
+          className="flex items-center justify-between mb-3"
         >
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-coral-50 dark:bg-coral-900/30">
@@ -213,7 +227,7 @@ export default function Dashboard() {
                 AI French Tutor
               </p>
               <p className="text-sm text-warm-500 dark:text-warm-400">
-                Practice conversational French with your AI tutor
+                Practice conversational French
               </p>
             </div>
           </div>
@@ -226,6 +240,47 @@ export default function Dashboard() {
             <ChevronRight size={16} className="text-warm-400" />
           </div>
         </Card>
+
+        {/* Smart Practice & Sentence Builder */}
+        <div className="grid grid-cols-2 gap-3">
+          <Card
+            hover
+            padding="md"
+            className="h-full"
+            onClick={() => navigate('/smart-practice')}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-2 rounded-xl bg-violet-50 dark:bg-violet-900/30">
+                <Brain size={18} className="text-violet-500" />
+              </div>
+            </div>
+            <p className="font-semibold text-warm-800 dark:text-warm-100">
+              Smart Practice
+            </p>
+            <p className="text-sm text-warm-500 dark:text-warm-400 mt-0.5">
+              AI-guided drills
+            </p>
+          </Card>
+
+          <Card
+            hover
+            padding="md"
+            className="h-full"
+            onClick={() => navigate('/sentence-builder')}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-900/30">
+                <PenTool size={18} className="text-teal-500" />
+              </div>
+            </div>
+            <p className="font-semibold text-warm-800 dark:text-warm-100">
+              Sentence Builder
+            </p>
+            <p className="text-sm text-warm-500 dark:text-warm-400 mt-0.5">
+              Build French sentences
+            </p>
+          </Card>
+        </div>
       </motion.div>
 
       {/* Action cards */}
