@@ -3,7 +3,7 @@ import { Home, BookOpen, Dumbbell, BarChart3, Settings } from 'lucide-react';
 
 const navItems = [
   { path: '/', icon: Home, label: 'Home' },
-  { path: '/verbs', icon: BookOpen, label: 'Verbs' },
+  { path: '/learn', icon: BookOpen, label: 'Learn' },
   { path: '/practice', icon: Dumbbell, label: 'Practice' },
   { path: '/progress', icon: BarChart3, label: 'Progress' },
   { path: '/settings', icon: Settings, label: 'Settings' },
@@ -23,7 +23,9 @@ export default function BottomNav() {
           const isActive =
             path === '/'
               ? location.pathname === '/'
-              : location.pathname.startsWith(path);
+              : path === '/learn'
+                ? location.pathname.startsWith('/learn') || location.pathname.startsWith('/verbs') || location.pathname.startsWith('/grammar')
+                : location.pathname.startsWith(path);
 
           return (
             <button
