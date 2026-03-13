@@ -4,15 +4,17 @@ import {
   useContext,
   useEffect,
   useReducer,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import type { UserData, TenseProgress, SRSGrade, DailyActivity, GrammarLessonProgress } from '../types';
-import { loadUserData, saveUserData, getDefaultUserData, clearUserData } from '../lib/storage';
+import { loadUserData, saveUserData, getDefaultUserData, clearUserData, syncToCloud, loadFromCloud, mergeProgress } from '../lib/storage';
 import { calculateSRS, calculateMasteryLevel, getDefaultTenseProgress, isDueForReview } from '../lib/srs';
 import { todayString } from '../lib/utils';
 import { calculateXPForAnswer, XP_DAILY_GOAL_BONUS } from '../lib/xp';
 import { checkNewAchievements, type Achievement } from '../lib/achievements';
+import { useAuth } from '../context/AuthContext';
 
 type Action =
   | { type: 'RECORD_ANSWER'; verbId: string; tense: string; grade: SRSGrade; quizType?: string }
@@ -26,7 +28,8 @@ type Action =
   | { type: 'COMPLETE_ONBOARDING'; level?: string }
   | { type: 'UPDATE_SETTINGS'; settings: Partial<UserData['settings']> }
   | { type: 'UNLOCK_ACHIEVEMENTS'; ids: string[] }
-  | { type: 'RECORD_GRAMMAR_RESULT'; lessonId: string; score: number; correct: number; total: number };
+  | { type: 'RECORD_GRAMMAR_RESULT'; lessonId: string; score: number; correct: number; total: number }
+  | { type: 'MERGE_CLOUD_DATA'; mergedData: UserData };
 
 function updateDailyActivity(state: UserData, xpEarned: number, isCorrect: boolean): DailyActivity[] {
   const today = todayString();
@@ -310,6 +313,10 @@ function reducer(state: UserData, action: Action): UserData {
       };
     }
 
+    case 'MERGE_CLOUD_DATA': {
+      return action.mergedData;
+    }
+
     default:
       return state;
   }
@@ -342,11 +349,51 @@ const ProgressContext = createContext<ProgressContextType | null>(null);
 export function ProgressProvider({ children }: { children: ReactNode }) {
   const [userData, dispatch] = useReducer(reducer, null, loadUserData);
   const [pendingAchievements, setPendingAchievements] = useState<Achievement[]>([]);
+  const { user } = useAuth();
+  const cloudSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasLoadedCloudRef = useRef(false);
 
-  // Auto-save on changes
+  // Auto-save on changes (local)
   useEffect(() => {
     saveUserData(userData);
   }, [userData]);
+
+  // Load cloud data on mount when authenticated, merge with local
+  useEffect(() => {
+    if (!user?.id || hasLoadedCloudRef.current) return;
+    hasLoadedCloudRef.current = true;
+
+    loadFromCloud(user.id).then((cloudData) => {
+      if (cloudData) {
+        const localData = loadUserData();
+        const merged = mergeProgress(localData, cloudData);
+        dispatch({ type: 'MERGE_CLOUD_DATA', mergedData: merged });
+      }
+    }).catch((err) => {
+      console.warn('[cloud-sync] Failed to load cloud data on mount:', err);
+    });
+  }, [user?.id]);
+
+  // Debounced cloud sync on state changes
+  useEffect(() => {
+    if (!user?.id) return;
+
+    if (cloudSyncTimerRef.current) {
+      clearTimeout(cloudSyncTimerRef.current);
+    }
+
+    cloudSyncTimerRef.current = setTimeout(() => {
+      syncToCloud(user.id, userData).catch((err) => {
+        console.warn('[cloud-sync] Debounced sync failed:', err);
+      });
+    }, 2000);
+
+    return () => {
+      if (cloudSyncTimerRef.current) {
+        clearTimeout(cloudSyncTimerRef.current);
+      }
+    };
+  }, [userData, user?.id]);
 
   // Check achievements after every state change
   useEffect(() => {
