@@ -19,22 +19,55 @@ const STORAGE_KEY = 'conjugo_conversations';
 /** Parse [CORRECTION: "..." -> "..." (...)] patterns from AI response text */
 function parseCorrections(text: string): GrammarCorrection[] {
   const corrections: GrammarCorrection[] = [];
-  const regex = /\[CORRECTION:\s*"([^"]+)"\s*(?:->|-->|\u2192)\s*"([^"]+)"\s*\(([^)]+)\)\]/gi;
+
+  // Pattern 1: Exact arrow format  [CORRECTION: "X" → "Y" (reason)]
+  const arrowRegex = /\[CORRECTION:\s*["\u201c]([^"\u201d]+)["\u201d]\s*(?:->|-->|\u2192)\s*["\u201c]([^"\u201d]+)["\u201d]\s*\(([^)]+)\)\]/gi;
   let match;
-  while ((match = regex.exec(text)) !== null) {
+  while ((match = arrowRegex.exec(text)) !== null) {
     corrections.push({
       original: match[1],
       corrected: match[2],
       explanation: match[3],
     });
   }
+
+  // Pattern 2: Prose-style [CORRECTION: "X" is incorrect. The correct phrase is "Y". (reason)]
+  if (corrections.length === 0) {
+    const proseRegex = /\[CORRECTION:\s*["\u201c]([^"\u201d]+)["\u201d]\s*(?:is incorrect|should be|needs to be)[^"]*["\u201c]([^"\u201d]+)["\u201d][^)]*\(([^)]+)\)\s*\]/gi;
+    while ((match = proseRegex.exec(text)) !== null) {
+      corrections.push({
+        original: match[1],
+        corrected: match[2],
+        explanation: match[3],
+      });
+    }
+  }
+
   return corrections;
 }
 
-/** Remove correction markers from the display text */
+/** Remove ALL [CORRECTION: ...] blocks from display text, regardless of internal format */
 function stripCorrections(text: string): string {
   return text
-    .replace(/\[CORRECTION:\s*"[^"]+"\s*(?:->|-->|\u2192)\s*"[^"]+"\s*\([^)]+\)\]/gi, '')
+    .replace(/\[CORRECTION:[^\]]*\]/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * Clean leaked system prompt instructions from AI output.
+ * Smaller models (e.g. Mistral 7B) sometimes echo bracketed meta-instructions
+ * like "[If the student responds in English, ...]" in their responses.
+ */
+function cleanLeakedInstructions(text: string): string {
+  return text
+    // Remove lines that are entirely a bracketed instruction
+    .replace(/^\s*\[(?:If|When|Note|Remember|Always|Do not|Don't|The student|In this)[^\]]*\]\s*$/gim, '')
+    // Remove inline bracketed instructions (not corrections)
+    .replace(/\[(?:If|When|Note|Remember|Always|Do not|Don't|The student|In this)[^\]]*\]/gi, '')
+    // Remove stage directions like *waits for response* or (thinking)
+    .replace(/^\s*\*[^*]+\*\s*$/gm, '')
+    // Collapse resulting blank lines
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
@@ -309,9 +342,9 @@ export default function AITutor() {
           });
         });
 
-        // Parse corrections from final response
+        // Parse corrections and clean up leaked instructions from final response
         const corrections = parseCorrections(accumulated);
-        const cleanContent = stripCorrections(accumulated);
+        const cleanContent = cleanLeakedInstructions(stripCorrections(accumulated));
 
         const finalMessages: AIMessage[] = [
           systemMessage,
@@ -404,9 +437,9 @@ export default function AITutor() {
           });
         });
 
-        // Parse corrections from final response
+        // Parse corrections and clean up leaked instructions from final response
         const corrections = parseCorrections(accumulated);
-        const cleanContent = stripCorrections(accumulated);
+        const cleanContent = cleanLeakedInstructions(stripCorrections(accumulated));
 
         setMessages((prev) => {
           const updated = [...prev];
