@@ -12,6 +12,8 @@ import {
   listModels,
   chat as ollamaChat,
   chatStream as ollamaChatStream,
+  setOllamaServerUrl as setOllamaUrl,
+  getOllamaServerUrl,
   type OllamaMessage,
   type OllamaChatOptions,
 } from '../lib/ollama';
@@ -29,6 +31,8 @@ interface AIContextType {
   chat: (messages: OllamaMessage[], options?: OllamaChatOptions) => Promise<string>;
   chatStream: (messages: OllamaMessage[], onToken: (token: string) => void) => Promise<string>;
   refreshStatus: () => Promise<void>;
+  ollamaServerUrl: string;
+  setOllamaServerUrl: (url: string) => void;
 }
 
 const AIContext = createContext<AIContextType>({
@@ -40,6 +44,8 @@ const AIContext = createContext<AIContextType>({
   chat: async () => '',
   chatStream: async () => '',
   refreshStatus: async () => {},
+  ollamaServerUrl: '',
+  setOllamaServerUrl: () => {},
 });
 
 export function AIProvider({ children }: { children: ReactNode }) {
@@ -55,6 +61,8 @@ export function AIProvider({ children }: { children: ReactNode }) {
   });
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [ollamaServerUrl, setOllamaServerUrlState] = useState<string>(getOllamaServerUrl());
 
   /**
    * Check Ollama status and fetch available models.
@@ -143,6 +151,12 @@ export function AIProvider({ children }: { children: ReactNode }) {
     await checkStatus(false);
   }, [checkStatus]);
 
+  const handleSetOllamaServerUrl = useCallback((url: string) => {
+    setOllamaUrl(url);
+    setOllamaServerUrlState(url);
+    checkStatus(true);
+  }, [checkStatus]);
+
   return (
     <AIContext.Provider
       value={{
@@ -154,6 +168,8 @@ export function AIProvider({ children }: { children: ReactNode }) {
         chat,
         chatStream,
         refreshStatus,
+        ollamaServerUrl,
+        setOllamaServerUrl: handleSetOllamaServerUrl,
       }}
     >
       {children}

@@ -1,4 +1,29 @@
-const OLLAMA_BASE = 'http://localhost:11434';
+const OLLAMA_LOCAL = 'http://localhost:11434';
+const SERVER_URL_KEY = 'conjugo_ollama_server_url';
+
+function getOllamaBase(): string {
+  try {
+    const stored = localStorage.getItem(SERVER_URL_KEY);
+    if (stored?.trim()) return stored.trim().replace(/\/+$/, '');
+  } catch { /* ignore */ }
+  return OLLAMA_LOCAL;
+}
+
+export function setOllamaServerUrl(url: string): void {
+  try {
+    if (url.trim()) {
+      localStorage.setItem(SERVER_URL_KEY, url.trim().replace(/\/+$/, ''));
+    } else {
+      localStorage.removeItem(SERVER_URL_KEY);
+    }
+  } catch { /* ignore */ }
+}
+
+export function getOllamaServerUrl(): string {
+  try {
+    return localStorage.getItem(SERVER_URL_KEY) ?? '';
+  } catch { return ''; }
+}
 
 // Types
 export interface OllamaMessage {
@@ -20,7 +45,7 @@ export async function checkOllamaStatus(): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(`${OLLAMA_BASE}/api/tags`, {
+    const res = await fetch(`${getOllamaBase()}/api/tags`, {
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -38,7 +63,7 @@ export async function listModels(): Promise<string[]> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(`${OLLAMA_BASE}/api/tags`, {
+    const res = await fetch(`${getOllamaBase()}/api/tags`, {
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -60,7 +85,7 @@ export async function chat(
   messages: OllamaMessage[],
   options?: OllamaChatOptions
 ): Promise<string> {
-  const res = await fetch(`${OLLAMA_BASE}/api/chat`, {
+  const res = await fetch(`${getOllamaBase()}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -90,7 +115,7 @@ export async function chatStream(
   messages: OllamaMessage[],
   onToken: (token: string) => void
 ): Promise<string> {
-  const res = await fetch(`${OLLAMA_BASE}/api/chat`, {
+  const res = await fetch(`${getOllamaBase()}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

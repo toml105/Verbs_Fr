@@ -22,9 +22,13 @@ const SPEECH_RATES = [
 export default function Settings() {
   const { darkMode, toggleDarkMode } = useTheme();
   const { user, signOut } = useAuth();
-  const { isOllamaAvailable, isChecking, selectedModel, setSelectedModel, availableModels, refreshStatus } = useAI();
+  const {
+    isOllamaAvailable, isChecking, selectedModel, setSelectedModel,
+    availableModels, refreshStatus, ollamaServerUrl, setOllamaServerUrl,
+  } = useAI();
   const { userData, setDailyGoal, resetProgress, updateSettings } = useProgress();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [serverUrlInput, setServerUrlInput] = useState(ollamaServerUrl);
   const audioSupported = isAudioSupported();
 
   return (
@@ -160,6 +164,37 @@ export default function Settings() {
                 </Link>
               </div>
             ) : null}
+
+            {/* Remote Ollama Server */}
+            <div className="pt-3 border-t border-warm-100 dark:border-warm-700">
+              <label htmlFor="ollama-url" className="text-sm text-warm-600 dark:text-warm-300 block mb-1.5">
+                Remote Server
+              </label>
+              <p className="text-xs text-warm-400 dark:text-warm-500 mb-2">
+                Connect to Ollama on another machine (required for iOS). Leave empty for localhost.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  id="ollama-url"
+                  type="url"
+                  value={serverUrlInput}
+                  onChange={(e) => setServerUrlInput(e.target.value)}
+                  placeholder="http://192.168.1.100:11434"
+                  className="flex-1 rounded-xl border border-warm-200 dark:border-warm-600 bg-warm-50 dark:bg-warm-700 text-warm-800 dark:text-warm-100 py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-transparent transition-colors"
+                />
+                <Button variant="secondary" onClick={() => setOllamaServerUrl(serverUrlInput)}>
+                  Save
+                </Button>
+              </div>
+              {ollamaServerUrl && (
+                <button
+                  onClick={() => { setServerUrlInput(''); setOllamaServerUrl(''); }}
+                  className="mt-2 text-xs text-coral-500 hover:text-coral-600 dark:hover:text-coral-400"
+                >
+                  Reset to localhost
+                </button>
+              )}
+            </div>
           </div>
         </Card>
       </motion.div>
