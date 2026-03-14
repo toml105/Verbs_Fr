@@ -16,7 +16,7 @@ export default function AppShell() {
   }, [clearPendingAchievements]);
 
   return (
-    <div className="min-h-screen bg-warm-50 dark:bg-warm-900 transition-colors duration-300">
+    <div className="min-h-screen bg-warm-50 dark:bg-warm-900 transition-colors duration-300 safe-area-top">
       <Confetti active={showConfetti} />
       {pendingAchievements.length > 0 && (
         <AchievementToast
