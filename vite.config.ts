@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  base: '/Verbs_Fr/',
+  base: process.env.VITE_BASE_URL || '/Verbs_Fr/',
   plugins: [
     react(),
     tailwindcss(),
@@ -19,8 +19,8 @@ export default defineConfig({
         background_color: '#FAFAF9',
         display: 'standalone',
         orientation: 'portrait',
-        scope: '/Verbs_Fr/',
-        start_url: '/Verbs_Fr/',
+        scope: process.env.VITE_BASE_URL || '/Verbs_Fr/',
+        start_url: process.env.VITE_BASE_URL || '/Verbs_Fr/',
         icons: [
           {
             src: 'icons/icon-192.png',

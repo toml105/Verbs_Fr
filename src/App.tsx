@@ -62,7 +62,7 @@ function AppRoutes() {
   }
 
   return (
-    <BrowserRouter basename="/Verbs_Fr">
+    <BrowserRouter basename={import.meta.env.VITE_BASE_URL || '/Verbs_Fr'}>
       <Routes>
         {/* Auth page renders without AppShell (no bottom nav) */}
         <Route path="/auth" element={<Auth />} />
