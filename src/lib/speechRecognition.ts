@@ -1,5 +1,8 @@
-// Speech Recognition wrapper for Web Speech API
-// Works in Chrome/Edge. Graceful fallback for unsupported browsers.
+// Speech Recognition wrapper for Web Speech API + native Capacitor fallback.
+// Web Speech API works in Chrome/Edge. Native fallback for iOS WKWebView.
+
+import { Capacitor } from '@capacitor/core';
+import { SpeechRecognition as NativeSpeechRecognition } from '@capacitor-community/speech-recognition';
 
 interface SpeechRecognitionResult {
   transcript: string;
@@ -37,10 +40,13 @@ function getSpeechRecognitionConstructor(): (new () => SpeechRecognitionInstance
 }
 
 export function isSpeechRecognitionSupported(): boolean {
-  return typeof window !== 'undefined' && getSpeechRecognitionConstructor() !== null;
+  if (typeof window === 'undefined') return false;
+  if (getSpeechRecognitionConstructor() !== null) return true;
+  if (Capacitor.isNativePlatform()) return true;
+  return false;
 }
 
-export function listenForSpeech(lang = 'fr-FR'): Promise<SpeechRecognitionResult> {
+function listenForSpeechWeb(lang: string): Promise<SpeechRecognitionResult> {
   return new Promise((resolve, reject) => {
     const SpeechRecognitionCtor = getSpeechRecognitionConstructor();
     if (!SpeechRecognitionCtor) {
@@ -94,6 +100,39 @@ export function listenForSpeech(lang = 'fr-FR'): Promise<SpeechRecognitionResult
       }
     }, 8000);
   });
+}
+
+async function listenForSpeechNative(lang: string): Promise<SpeechRecognitionResult> {
+  try {
+    const perm = await NativeSpeechRecognition.requestPermissions();
+    if (perm.speechRecognition !== 'granted') {
+      return { transcript: '', confidence: 0 };
+    }
+    const available = await NativeSpeechRecognition.available();
+    if (!available.available) {
+      return { transcript: '', confidence: 0 };
+    }
+    const result = await NativeSpeechRecognition.start({
+      language: lang,
+      maxResults: 1,
+      partialResults: false,
+      popup: false,
+    });
+    const transcript = result.matches?.[0] ?? '';
+    return { transcript: transcript.trim(), confidence: transcript ? 0.9 : 0 };
+  } catch {
+    return { transcript: '', confidence: 0 };
+  }
+}
+
+export async function listenForSpeech(lang = 'fr-FR'): Promise<SpeechRecognitionResult> {
+  if (getSpeechRecognitionConstructor()) {
+    return listenForSpeechWeb(lang);
+  }
+  if (Capacitor.isNativePlatform()) {
+    return listenForSpeechNative(lang);
+  }
+  throw new Error('Speech recognition not supported');
 }
 
 // Normalize French text for comparison (handle accents, apostrophes, etc.)
