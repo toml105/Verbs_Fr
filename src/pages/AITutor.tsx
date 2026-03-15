@@ -7,10 +7,13 @@ import { useAuth } from '../context/AuthContext';
 import { useProgress } from '../context/UserProgressContext';
 import { supabase } from '../lib/supabase';
 import { SYSTEM_PROMPTS } from '../lib/aiPrompts';
+import { buildUserProfile } from '../lib/userProfileBuilder';
+import { getRecentSummaries, saveConversationSummary } from '../lib/conversationMemory';
 import TopicSelector from '../components/ai/TopicSelector';
 import ChatMessage from '../components/ai/ChatMessage';
 import ChatInput from '../components/ai/ChatInput';
 import Badge from '../components/ui/Badge';
+import type { UserProfile } from '../lib/userProfileBuilder';
 import type { AIMessage, ConversationTopic, GrammarCorrection } from '../types';
 import type { ConversationRecord } from './ConversationHistory';
 
@@ -149,7 +152,7 @@ function DifficultyStars({ level }: { level: 1 | 2 | 3 }) {
 export default function AITutor() {
   const { isAIAvailable, chatStream } = useAI();
   const { user } = useAuth();
-  const { getOverallMastery } = useProgress();
+  const { userData, getOverallMastery } = useProgress();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -168,6 +171,65 @@ export default function AITutor() {
   // Track current conversation id and whether it has been persisted (INSERT vs UPDATE)
   const conversationIdRef = useRef<string | null>(null);
   const isNewConversationRef = useRef(true);
+
+  // Track visual viewport height for keyboard avoidance
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    function onResize() {
+      if (window.visualViewport) {
+        setViewportHeight(window.visualViewport.height);
+      }
+    }
+
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, []);
+
+  // User profile for AI personalization (built once on mount)
+  const userProfileRef = useRef<UserProfile | null>(null);
+
+  // Build user profile and fetch recent summaries on mount
+  useEffect(() => {
+    let cancelled = false;
+
+    async function init() {
+      const mastery = getOverallMastery();
+
+      // Fetch recent conversation summaries if authenticated
+      let summaries: string[] = [];
+      if (user) {
+        summaries = await getRecentSummaries(user.id, 3);
+      }
+
+      if (!cancelled) {
+        userProfileRef.current = buildUserProfile(userData, mastery, summaries);
+      }
+    }
+
+    init();
+    return () => { cancelled = true; };
+  }, [userData, getOverallMastery, user]);
+
+  // Save conversation summary when navigating away (unmount)
+  useEffect(() => {
+    return () => {
+      // Only save if there was a real conversation (4+ non-system messages)
+      const nonSystem = messages.filter((m) => m.role !== 'system');
+      if (nonSystem.length >= 4 && user) {
+        const topicId = selectedTopic?.id ?? null;
+        saveConversationSummary(
+          user.id,
+          messages.map((m) => ({ role: m.role, content: m.content })),
+          topicId
+        );
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, user, selectedTopic]);
 
   // Determine user level from mastery
   const getUserLevel = useCallback((): string => {
@@ -276,10 +338,10 @@ export default function AITutor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom on new messages or viewport resize (keyboard open/close)
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isGenerating]);
+  }, [messages, isGenerating, viewportHeight]);
 
   // When a topic is selected, create system message and trigger AI opening
   const handleSelectTopic = useCallback(
@@ -295,9 +357,11 @@ export default function AITutor() {
       setConversationTitle(title);
       setConversationDifficulty(topic?.difficulty ?? null);
 
-      const level = getUserLevel();
+      const profile = userProfileRef.current;
       const topicName = topic?.starterPrompt ?? undefined;
-      const systemContent = SYSTEM_PROMPTS.conversationTutor(level, topicName);
+      const systemContent = profile
+        ? SYSTEM_PROMPTS.conversationTutor(profile, topicName)
+        : SYSTEM_PROMPTS.conversationTutor(getUserLevel(), topicName);
 
       const systemMessage: AIMessage = {
         id: crypto.randomUUID(),
@@ -559,7 +623,10 @@ export default function AITutor() {
   const displayDifficulty = selectedTopic?.difficulty ?? conversationDifficulty;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] -mx-4 -mt-4 sm:-mx-6 sm:-mt-6">
+    <div
+      className="flex flex-col -mx-4 -mt-4 sm:-mx-6 sm:-mt-6"
+      style={{ height: viewportHeight ? `${viewportHeight - 80}px` : 'calc(100dvh - 5rem)' }}
+    >
       {/* Chat header */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}

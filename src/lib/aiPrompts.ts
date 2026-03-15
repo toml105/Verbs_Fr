@@ -4,19 +4,60 @@
  * Responses should be concise and pedagogically sound.
  */
 
+import type { UserProfile } from './userProfileBuilder';
+import { getGranularLevel } from './userProfileBuilder';
+
 export const SYSTEM_PROMPTS = {
   /**
-   * AI conversation tutor - adapts language mix based on user level.
-   * At beginner level: mostly English with French phrases.
-   * At intermediate: balanced mix.
-   * At advanced: mostly French with English only for complex explanations.
+   * AI conversation tutor - adapts language mix based on user profile.
+   * Uses granular 5-tier difficulty and injects weak areas so the AI
+   * naturally practices what the student struggles with.
+   *
+   * Accepts either a full UserProfile or a plain level string (backward compat).
    */
-  conversationTutor: (level: string, topic?: string) => {
-    const levelInstructions = {
+  conversationTutor: (profileOrLevel: UserProfile | string, topic?: string) => {
+    // Support both old (string) and new (UserProfile) calling conventions
+    const isProfile = typeof profileOrLevel !== 'string';
+    const level = isProfile ? profileOrLevel.level : profileOrLevel;
+    const granularLevel = isProfile ? getGranularLevel(profileOrLevel.masteryScore) : level;
+
+    const levelInstructions: Record<string, string> = {
+      'pure beginner': `The student is a pure beginner. Use almost entirely English with very simple French words and greetings. Stick to present tense only. Keep French phrases under 5 words. Translate everything.`,
+      'early learner': `The student is an early learner. Use mostly English with simple French sentences. Introduce passé composé gently alongside present tense. Keep French sentences under 8 words.`,
       beginner: `The student is a beginner. Use mostly English with simple French phrases. Introduce new vocabulary gradually. Use present tense primarily. Keep sentences short (under 10 words in French).`,
       intermediate: `The student is intermediate. Use a balanced mix of French and English. Use various tenses (present, passé composé, imparfait, futur). Introduce idiomatic expressions occasionally.`,
+      'upper intermediate': `The student is upper intermediate. Use mostly French with English only for nuance. Use all common tenses naturally. Introduce subjunctive and more complex structures. Use idiomatic expressions.`,
       advanced: `The student is advanced. Speak primarily in French. Use English only for complex grammar explanations. Use all tenses including subjunctive and conditional. Use natural, conversational French with idioms.`,
-    }[level] || `The student is at ${level} level. Adapt your language accordingly.`;
+    };
+
+    const levelInstruction = levelInstructions[granularLevel] || levelInstructions[level]
+      || `The student is at ${granularLevel} level. Adapt your language accordingly.`;
+
+    // Build personalization block from profile data
+    let personalization = '';
+    if (isProfile) {
+      const parts: string[] = [];
+
+      if (profileOrLevel.weakTenses.length > 0) {
+        parts.push(`The student struggles with these tenses: ${profileOrLevel.weakTenses.join(', ')}. Naturally incorporate these tenses into your conversation to give them practice.`);
+      }
+      if (profileOrLevel.weakVerbs.length > 0) {
+        parts.push(`They find these verbs difficult: ${profileOrLevel.weakVerbs.join(', ')}. Try to use some of these verbs in context.`);
+      }
+      if (profileOrLevel.recentMistakes.length > 0) {
+        parts.push(`Recent mistake patterns: ${profileOrLevel.recentMistakes.join('; ')}. Watch for these and correct gently if they recur.`);
+      }
+      if (profileOrLevel.conversationSummary) {
+        parts.push(`Previous sessions: ${profileOrLevel.conversationSummary}`);
+      }
+      if (profileOrLevel.streakDays > 0) {
+        parts.push(`The student has been practicing for ${profileOrLevel.streakDays} days in a row — acknowledge their dedication when appropriate.`);
+      }
+
+      if (parts.length > 0) {
+        personalization = '\n\nStudent profile:\n' + parts.join('\n');
+      }
+    }
 
     const topicContext = topic
       ? `\n\nConversation topic: "${topic}". Stay on this topic and use relevant vocabulary.`
@@ -24,7 +65,7 @@ export const SYSTEM_PROMPTS = {
 
     return `You are Marie, a friendly French tutor. Help the student practice conversational French.
 
-${levelInstructions}${topicContext}
+${levelInstruction}${personalization}${topicContext}
 
 IMPORTANT: Respond ONLY as Marie speaking directly to the student. Never include bracketed instructions, stage directions, conditional logic, or meta-commentary about what you would do. Just speak naturally as Marie.
 
@@ -64,7 +105,12 @@ Be thorough but not pedantic. Focus on genuine errors, not stylistic preferences
    * Exercise generator - creates targeted exercises based on weak areas.
    * Returns structured JSON that can be parsed into exercise objects.
    */
-  exerciseGenerator: (weakAreas: string[], level: string) => `You are a French language exercise creator. Generate exactly 5 exercises targeting the student's weak areas.
+  exerciseGenerator: (weakAreas: string[], levelOrProfile: string | UserProfile) => {
+    const level = typeof levelOrProfile === 'string'
+      ? levelOrProfile
+      : getGranularLevel(levelOrProfile.masteryScore);
+
+    return `You are a French language exercise creator. Generate exactly 5 exercises targeting the student's weak areas.
 
 Student level: ${level}
 Weak areas to target: ${weakAreas.join(', ')}
@@ -108,7 +154,8 @@ Rules:
 - Each exercise should target one of the weak areas
 - Vary exercise types (fill-blank, translation, error-correction, multiple-choice)
 - Provide helpful hints and clear explanations
-- Keep sentences appropriate to the student's level`,
+- Keep sentences appropriate to the student's level`;
+  },
 
   /**
    * Pronunciation coach - analyzes speech transcription for pronunciation issues.

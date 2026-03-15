@@ -74,7 +74,7 @@ export async function chat(
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(mapErrorMessage(res.status, (errorData as { error?: string }).error));
+    throw createAPIError(res.status, errorData as { error?: string; code?: string });
   }
 
   const data = (await res.json()) as { content: string };
@@ -109,7 +109,7 @@ export async function chatStream(
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(mapErrorMessage(res.status, (errorData as { error?: string }).error));
+    throw createAPIError(res.status, errorData as { error?: string; code?: string });
   }
 
   const reader = res.body?.getReader();
@@ -170,19 +170,61 @@ export async function chatStream(
   return accumulated;
 }
 
+// Error codes returned by edge functions for quota/subscription issues
+export const ERROR_CODES = {
+  QUOTA_EXCEEDED: 'QUOTA_EXCEEDED',
+  SUBSCRIPTION_REQUIRED: 'SUBSCRIPTION_REQUIRED',
+} as const;
+
+export type APIErrorCode = typeof ERROR_CODES[keyof typeof ERROR_CODES] | undefined;
+
+export class APIError extends Error {
+  code?: APIErrorCode;
+  status: number;
+
+  constructor(message: string, status: number, code?: APIErrorCode) {
+    super(message);
+    this.name = 'APIError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
 /**
  * Map HTTP error status codes to user-friendly messages.
+ * Now also extracts error codes from the response body.
  */
-function mapErrorMessage(status: number, serverMessage?: string): string {
+function createAPIError(status: number, errorData: { error?: string; code?: string }): APIError {
+  const code = errorData.code as APIErrorCode;
+
+  if (code === ERROR_CODES.SUBSCRIPTION_REQUIRED) {
+    return new APIError(
+      errorData.error ?? 'This feature requires a Pro subscription.',
+      status,
+      code
+    );
+  }
+
+  if (code === ERROR_CODES.QUOTA_EXCEEDED) {
+    return new APIError(
+      errorData.error ?? 'Daily usage limit reached. Try again tomorrow.',
+      status,
+      code
+    );
+  }
+
   switch (status) {
     case 401:
-      return 'Please sign in to use AI features';
+      return new APIError('Please sign in to use AI features', status);
     case 429:
-      return 'Too many requests — please wait a moment and try again';
+      return new APIError('Too many requests — please wait a moment and try again', status);
     case 502:
-      return 'AI service is temporarily unavailable. Please try again later.';
+      return new APIError('AI service is temporarily unavailable. Please try again later.', status);
     default:
-      return serverMessage ?? 'Could not reach the AI service. Please try again.';
+      return new APIError(
+        errorData.error ?? 'Could not reach the AI service. Please try again.',
+        status
+      );
   }
 }
 
@@ -208,7 +250,7 @@ export async function transcribeAudio(audioBlob: Blob): Promise<string> {
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(mapErrorMessage(res.status, (errorData as { error?: string }).error));
+    throw createAPIError(res.status, errorData as { error?: string; code?: string });
   }
 
   const data = (await res.json()) as { text: string };
@@ -235,7 +277,7 @@ export async function textToSpeech(text: string): Promise<Blob> {
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(mapErrorMessage(res.status, (errorData as { error?: string }).error));
+    throw createAPIError(res.status, errorData as { error?: string; code?: string });
   }
 
   return await res.blob();

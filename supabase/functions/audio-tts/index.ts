@@ -8,6 +8,9 @@ const MAX_TEXT_LENGTH = 500;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 30;
 
+// Daily quota for Pro users (free users are blocked entirely — TTS is paid-only)
+const PRO_DAILY_TTS_CHAR_LIMIT = 10_000;
+
 const ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "http://localhost:4173",
@@ -53,6 +56,18 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
   return headers;
 }
 
+// --- Helpers ---
+async function computeTextHash(text: string): Promise<string> {
+  const data = new TextEncoder().encode(text.trim().toLowerCase());
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function todayDateString(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
 // --- Main Handler ---
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
@@ -93,6 +108,23 @@ Deno.serve(async (req) => {
       });
     }
 
+    // --- Access check (owner-only for now, subscription gating later) ---
+    const ALLOWED_EMAILS = ["toml100@icloud.com"];
+    const isAllowed = ALLOWED_EMAILS.includes(user.email ?? "");
+
+    if (!isAllowed) {
+      return new Response(
+        JSON.stringify({
+          error: "TTS is a Pro feature. Upgrade to hear native French pronunciation.",
+          code: "SUBSCRIPTION_REQUIRED",
+        }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // --- Rate limit ---
     if (isRateLimited(user.id)) {
       return new Response(JSON.stringify({ error: "Too many requests. Please wait." }), {
@@ -113,7 +145,52 @@ Deno.serve(async (req) => {
     const text = body.text.slice(0, MAX_TEXT_LENGTH);
     const voiceId = typeof body.voice_id === "string" ? body.voice_id : DEFAULT_VOICE_ID;
 
-    // --- Call ElevenLabs ---
+    // --- Check daily quota ---
+    const today = todayDateString();
+    const { data: usage } = await supabase
+      .from("api_usage")
+      .select("tts_characters")
+      .eq("user_id", user.id)
+      .eq("usage_date", today)
+      .single();
+
+    const currentChars = usage?.tts_characters ?? 0;
+    if (currentChars + text.length > PRO_DAILY_TTS_CHAR_LIMIT) {
+      return new Response(
+        JSON.stringify({
+          error: "Daily TTS character limit reached. Try again tomorrow.",
+          code: "QUOTA_EXCEEDED",
+        }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // --- Check persistent TTS cache ---
+    const textHash = await computeTextHash(text);
+    const cachePath = `${textHash}.mp3`;
+
+    const { data: cachedFile } = await supabase.storage
+      .from("tts-cache")
+      .download(cachePath);
+
+    if (cachedFile) {
+      // Cache hit — return without calling ElevenLabs or counting usage
+      const arrayBuffer = await cachedFile.arrayBuffer();
+      return new Response(arrayBuffer, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "audio/mpeg",
+          "Cache-Control": "public, max-age=86400",
+          "X-TTS-Cache": "hit",
+        },
+      });
+    }
+
+    // --- Cache miss: Call ElevenLabs ---
     const apiKey = Deno.env.get("ELEVENLABS_API_KEY");
     if (!apiKey) {
       console.error("ELEVENLABS_API_KEY is not set");
@@ -146,13 +223,39 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Stream audio back to client
-    return new Response(ttsRes.body, {
+    // Read audio into buffer for caching + response
+    const audioBuffer = await ttsRes.arrayBuffer();
+
+    // Upload to cache (fire and forget — don't block the response on this)
+    supabase.storage
+      .from("tts-cache")
+      .upload(cachePath, audioBuffer, { contentType: "audio/mpeg", upsert: false })
+      .then(({ error }) => {
+        if (error) console.error("TTS cache upload error:", error.message);
+      });
+
+    // Track cache metadata (fire and forget)
+    supabase
+      .from("tts_cache_meta")
+      .upsert({ text_hash: textHash, original_text: text, char_count: text.length })
+      .then(({ error }) => {
+        if (error) console.error("TTS cache meta error:", error.message);
+      });
+
+    // Track usage (fire and forget)
+    supabase
+      .rpc("increment_usage", { p_user_id: user.id, p_field: "tts_characters", p_amount: text.length })
+      .then(({ error }) => {
+        if (error) console.error("Usage tracking error:", error.message);
+      });
+
+    return new Response(audioBuffer, {
       status: 200,
       headers: {
         ...corsHeaders,
         "Content-Type": "audio/mpeg",
         "Cache-Control": "public, max-age=86400",
+        "X-TTS-Cache": "miss",
       },
     });
   } catch (err) {

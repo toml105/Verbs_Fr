@@ -8,6 +8,10 @@ const MAX_TOKENS_CAP = 1024;
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
 const RATE_LIMIT_MAX_REQUESTS = 30; // per user per window
 
+// Daily quotas
+const FREE_DAILY_CHAT_LIMIT = 50;
+const PRO_DAILY_CHAT_LIMIT = 200;
+
 // Allowed origins for CORS
 const ALLOWED_ORIGINS = [
   "http://localhost:5173",
@@ -181,6 +185,44 @@ Deno.serve(async (req) => {
       );
     }
 
+    // --- Daily quota check ---
+    const today = new Date().toISOString().split("T")[0];
+    const { data: usage } = await supabase
+      .from("api_usage")
+      .select("chat_messages")
+      .eq("user_id", user.id)
+      .eq("usage_date", today)
+      .single();
+
+    // Check subscription status for quota tier
+    const { data: sub } = await supabase
+      .from("subscriptions")
+      .select("status, current_period_end")
+      .eq("user_id", user.id)
+      .single();
+
+    const isProUser =
+      sub?.status === "active" &&
+      new Date(sub.current_period_end) > new Date();
+
+    const dailyLimit = isProUser ? PRO_DAILY_CHAT_LIMIT : FREE_DAILY_CHAT_LIMIT;
+    const currentMessages = usage?.chat_messages ?? 0;
+
+    if (currentMessages >= dailyLimit) {
+      return new Response(
+        JSON.stringify({
+          error: isProUser
+            ? "Daily chat limit reached. Try again tomorrow."
+            : "Daily free chat limit reached. Upgrade to Pro for more.",
+          code: "QUOTA_EXCEEDED",
+        }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // --- Validate input ---
     const body = await req.json();
     const chatReq = validateRequest(body);
@@ -236,6 +278,13 @@ Deno.serve(async (req) => {
         }
       );
     }
+
+    // Track usage (fire and forget)
+    supabase
+      .rpc("increment_usage", { p_user_id: user.id, p_field: "chat_messages", p_amount: 1 })
+      .then(({ error }) => {
+        if (error) console.error("Usage tracking error:", error.message);
+      });
 
     // --- Streaming response ---
     if (chatReq.stream) {

@@ -7,6 +7,10 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 20;
 
+// Daily quotas
+const FREE_DAILY_TRANSCRIPTION_LIMIT = 10;
+const PRO_DAILY_TRANSCRIPTION_LIMIT = 50;
+
 const ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "http://localhost:4173",
@@ -100,6 +104,43 @@ Deno.serve(async (req) => {
       });
     }
 
+    // --- Daily quota check ---
+    const today = new Date().toISOString().split("T")[0];
+    const { data: usage } = await supabase
+      .from("api_usage")
+      .select("transcriptions")
+      .eq("user_id", user.id)
+      .eq("usage_date", today)
+      .single();
+
+    const { data: sub } = await supabase
+      .from("subscriptions")
+      .select("status, current_period_end")
+      .eq("user_id", user.id)
+      .single();
+
+    const isProUser =
+      sub?.status === "active" &&
+      new Date(sub.current_period_end) > new Date();
+
+    const dailyLimit = isProUser ? PRO_DAILY_TRANSCRIPTION_LIMIT : FREE_DAILY_TRANSCRIPTION_LIMIT;
+    const currentCount = usage?.transcriptions ?? 0;
+
+    if (currentCount >= dailyLimit) {
+      return new Response(
+        JSON.stringify({
+          error: isProUser
+            ? "Daily transcription limit reached. Try again tomorrow."
+            : "Daily free transcription limit reached. Upgrade to Pro for more.",
+          code: "QUOTA_EXCEEDED",
+        }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // --- Parse multipart form data ---
     const formData = await req.formData();
     const audioFile = formData.get("file");
@@ -152,6 +193,13 @@ Deno.serve(async (req) => {
     }
 
     const result = await groqRes.json() as { text: string };
+
+    // Track usage (fire and forget)
+    supabase
+      .rpc("increment_usage", { p_user_id: user.id, p_field: "transcriptions", p_amount: 1 })
+      .then(({ error }) => {
+        if (error) console.error("Usage tracking error:", error.message);
+      });
 
     return new Response(JSON.stringify({ text: result.text?.trim() ?? "" }), {
       status: 200,
