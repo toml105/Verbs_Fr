@@ -43,7 +43,7 @@ function getSpeechRecognitionConstructor(): (new () => SpeechRecognitionInstance
 export function isSpeechRecognitionSupported(): boolean {
   if (typeof window === 'undefined') return false;
   // Cloud STT works anywhere with MediaRecorder (mic access)
-  if (navigator.mediaDevices?.getUserMedia) return true;
+  if (typeof navigator.mediaDevices?.getUserMedia === 'function') return true;
   if (getSpeechRecognitionConstructor() !== null) return true;
   if (Capacitor.isNativePlatform()) return true;
   return false;
