@@ -1,10 +1,10 @@
 /**
  * AI-Powered Exercise Generator
- * Generates targeted exercises using Ollama AI or a local fallback.
+ * Generates targeted exercises using AI or a local fallback.
  */
 
 import type { WeaknessReport } from '../types';
-import type { OllamaMessage } from './ollama';
+import type { ChatMessage } from './aiClient';
 import { SYSTEM_PROMPTS } from './aiPrompts';
 import { verbs } from '../data/verbs';
 import { conjugations } from '../data/conjugations';
@@ -22,11 +22,11 @@ export interface AIExercise {
 
 /**
  * Generate exercises targeting the user's weak areas.
- * Uses AI (Ollama) when available, falls back to local generation.
+ * Uses AI when available, falls back to local generation.
  */
 export async function generateExercises(
   weaknesses: WeaknessReport,
-  chatFn?: (messages: OllamaMessage[]) => Promise<string>
+  chatFn?: (messages: ChatMessage[]) => Promise<string>
 ): Promise<AIExercise[]> {
   // Prepare weak areas summary for AI
   const weakAreas: string[] = [];
@@ -58,16 +58,16 @@ export async function generateExercises(
 }
 
 /**
- * Generate exercises using the Ollama AI.
+ * Generate exercises using the AI service.
  */
 async function generateWithAI(
-  chatFn: (messages: OllamaMessage[]) => Promise<string>,
+  chatFn: (messages: ChatMessage[]) => Promise<string>,
   weakAreas: string[],
   level: string
 ): Promise<AIExercise[]> {
   const systemPrompt = SYSTEM_PROMPTS.exerciseGenerator(weakAreas, level);
 
-  const messages: OllamaMessage[] = [
+  const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: `Generate 5 exercises targeting these areas: ${weakAreas.join(', ')}` },
   ];

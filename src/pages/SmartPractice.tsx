@@ -21,7 +21,7 @@ const XP_PER_INCORRECT = 2;
 export default function SmartPractice() {
   const navigate = useNavigate();
   const { userData, recordAnswer, awardBonusXP } = useProgress();
-  const { isOllamaAvailable, chat } = useAI();
+  const { isAIAvailable, chat } = useAI();
 
   const [pageState, setPageState] = useState<PageState>('loading');
   const [weaknesses, setWeaknesses] = useState<WeaknessReport | null>(null);
@@ -36,7 +36,7 @@ export default function SmartPractice() {
       const report = analyzeWeaknesses(userData);
       setWeaknesses(report);
 
-      const chatFn = isOllamaAvailable ? chat : undefined;
+      const chatFn = isAIAvailable ? chat : undefined;
       const exs = await generateExercises(report, chatFn);
       setExercises(exs);
       setPageState('ready');
@@ -84,14 +84,14 @@ export default function SmartPractice() {
     if (!weaknesses) return;
 
     setIsGenerating(true);
-    const chatFn = isOllamaAvailable ? chat : undefined;
+    const chatFn = isAIAvailable ? chat : undefined;
     const newExercises = await generateExercises(weaknesses, chatFn);
     setExercises(newExercises);
     setCurrentIndex(0);
     setResults([]);
     setIsGenerating(false);
     setPageState('practicing');
-  }, [weaknesses, isOllamaAvailable, chat]);
+  }, [weaknesses, isAIAvailable, chat]);
 
   // Compute results stats
   const score = useMemo(() => {
@@ -186,7 +186,7 @@ export default function SmartPractice() {
             )}
 
             <div className="flex items-center gap-2 mb-4 text-sm text-warm-500">
-              {isOllamaAvailable ? (
+              {isAIAvailable ? (
                 <>
                   <Sparkles size={14} className="text-amber-500" />
                   <span>AI-powered exercises</span>

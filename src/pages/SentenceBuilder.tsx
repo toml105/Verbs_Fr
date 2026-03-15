@@ -16,7 +16,7 @@ import { SYSTEM_PROMPTS } from '../lib/aiPrompts';
 import { examples } from '../data/examples';
 import { verbs } from '../data/verbs';
 import { shuffleArray } from '../lib/utils';
-import type { OllamaMessage } from '../lib/ollama';
+import type { ChatMessage } from '../lib/aiClient';
 
 type PageMode = 'select' | 'exercise' | 'result';
 
@@ -114,7 +114,7 @@ interface ExerciseAnswer {
 
 export default function SentenceBuilder() {
   const navigate = useNavigate();
-  const { isOllamaAvailable, chat } = useAI();
+  const { isAIAvailable, chat } = useAI();
   const [pageMode, setPageMode] = useState<PageMode>('select');
   const [exerciseMode, setExerciseMode] = useState<SentenceMode>('translate');
   const [exercises, setExercises] = useState<SentenceExerciseData[]>([]);
@@ -130,13 +130,13 @@ export default function SentenceBuilder() {
     setExerciseAnswers([]);
 
     // Try AI-generated exercises first, fallback to local
-    if (isOllamaAvailable && (mode === 'translate' || mode === 'respond')) {
+    if (isAIAvailable && (mode === 'translate' || mode === 'respond')) {
       setIsGenerating(true);
       try {
         const randomVerbs = shuffleArray([...verbs]).slice(0, 5).map(v => v.infinitive);
         const systemPrompt = SYSTEM_PROMPTS.sentenceBuilder(randomVerbs, 'present');
 
-        const messages: OllamaMessage[] = [
+        const messages: ChatMessage[] = [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Generate 5 ${mode === 'translate' ? 'sentences to translate from English to French' : 'questions in French for the student to answer'}. Respond with JSON.` },
         ];
@@ -175,7 +175,7 @@ export default function SentenceBuilder() {
       setExercises(localExercises);
       setPageMode('exercise');
     }
-  }, [isOllamaAvailable, chat]);
+  }, [isAIAvailable, chat]);
 
   const handleAnswer = useCallback(async (answer: string): Promise<SentenceResult> => {
     if (!currentExercise) {
@@ -183,7 +183,7 @@ export default function SentenceBuilder() {
     }
 
     // If AI is available, get AI evaluation
-    if (isOllamaAvailable) {
+    if (isAIAvailable) {
       try {
         const evaluatePrompt = currentExercise.mode === 'describe'
           ? `The student was asked to describe this emoji scene in French: ${currentExercise.prompt}\nTheir answer: "${answer}"\n\nEvaluate if the French sentence is grammatically correct and relevant to the scene.`
@@ -193,7 +193,7 @@ export default function SentenceBuilder() {
           ? `Expected French: "${currentExercise.expectedAnswer}"\nStudent's answer: "${answer}"\n\nEvaluate if the student's answer is correct or a valid alternative translation.`
           : `Evaluate this French: "${answer}"\n\nIs it grammatically correct?`;
 
-        const messages: OllamaMessage[] = [
+        const messages: ChatMessage[] = [
           {
             role: 'system',
             content: `You are a French language evaluator. Respond with ONLY valid JSON:
@@ -257,7 +257,7 @@ Be encouraging. Accept answers that are semantically correct even if not word-fo
     }]);
 
     return result;
-  }, [currentExercise, isOllamaAvailable, chat]);
+  }, [currentExercise, isAIAvailable, chat]);
 
   const handleNext = useCallback(() => {
     if (currentIndex + 1 < exercises.length) {
@@ -456,9 +456,9 @@ Be encouraging. Accept answers that are semantically correct even if not word-fo
 
       <Card padding="md" className="bg-warm-50 dark:bg-warm-800/50">
         <p className="text-xs text-warm-500 dark:text-warm-400">
-          <strong>Tip:</strong> {isOllamaAvailable
+          <strong>Tip:</strong> {isAIAvailable
             ? 'AI will generate personalized exercises and evaluate your answers intelligently.'
-            : 'Connect Ollama for AI-powered exercise generation and smart evaluation.'}
+            : 'Sign in to unlock AI-powered exercise generation and smart evaluation.'}
         </p>
       </Card>
     </div>

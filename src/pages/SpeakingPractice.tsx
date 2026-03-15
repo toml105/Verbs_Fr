@@ -83,7 +83,7 @@ function generateSentenceReadQuestions(count: number): SpeakingQuestion[] {
 export default function SpeakingPractice() {
   const navigate = useNavigate();
   const { recordAnswer, userData } = useProgress();
-  const { isOllamaAvailable, chat } = useAI();
+  const { isAIAvailable, chat } = useAI();
   const [mode, setMode] = useState<SpeakingMode>('select');
   const [questions, setQuestions] = useState<SpeakingQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -143,7 +143,7 @@ export default function SpeakingPractice() {
         }
 
         // AI-enhanced feedback if available
-        if (isOllamaAvailable) {
+        if (isAIAvailable) {
           setIsAnalyzing(true);
           try {
             const feedback = await analyzeSpeech(result.transcript, currentQuestion.french, chat);
@@ -160,7 +160,7 @@ export default function SpeakingPractice() {
     } finally {
       setIsListening(false);
     }
-  }, [isListening, speechSupported, currentQuestion, recordAnswer, isOllamaAvailable, chat]);
+  }, [isListening, speechSupported, currentQuestion, recordAnswer, isAIAvailable, chat]);
 
   const handlePlayCorrect = useCallback(() => {
     if (!currentQuestion || !audioSupported) return;

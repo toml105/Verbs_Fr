@@ -18,7 +18,7 @@ export default function GrammarLesson() {
   const { lessonId } = useParams<{ lessonId: string }>();
   const navigate = useNavigate();
   const { userData } = useProgress();
-  const { isOllamaAvailable } = useAI();
+  const { isAIAvailable } = useAI();
   const [activeTab, setActiveTab] = useState<Tab>('learn');
   const [showGrammarHelper, setShowGrammarHelper] = useState(false);
 
@@ -255,7 +255,7 @@ export default function GrammarLesson() {
       )}
 
       {/* Floating Ask AI button */}
-      {isOllamaAvailable && (
+      {isAIAvailable && (
         <motion.button
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}

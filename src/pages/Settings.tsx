@@ -12,6 +12,8 @@ import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import { isAudioSupported, speak } from '../lib/audio';
 
+// Note: AI features now use cloud AI via Supabase Edge Functions
+
 const DAILY_GOALS = [10, 20, 30, 50];
 const SPEECH_RATES = [
   { label: 'Slow', value: 0.6 },
@@ -22,13 +24,9 @@ const SPEECH_RATES = [
 export default function Settings() {
   const { darkMode, toggleDarkMode } = useTheme();
   const { user, signOut } = useAuth();
-  const {
-    isOllamaAvailable, isChecking, selectedModel, setSelectedModel,
-    availableModels, refreshStatus, ollamaServerUrl, setOllamaServerUrl,
-  } = useAI();
+  const { isAIAvailable, isChecking } = useAI();
   const { userData, setDailyGoal, resetProgress, updateSettings } = useProgress();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [serverUrlInput, setServerUrlInput] = useState(ollamaServerUrl);
   const audioSupported = isAudioSupported();
 
   return (
@@ -109,92 +107,37 @@ export default function Settings() {
                   <span className="w-2.5 h-2.5 rounded-full bg-warm-300 dark:bg-warm-500 animate-pulse" />
                   <span className="text-sm text-warm-500 dark:text-warm-400">Checking...</span>
                 </>
-              ) : isOllamaAvailable ? (
+              ) : isAIAvailable ? (
                 <>
                   <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
-                  <span className="text-sm text-warm-600 dark:text-warm-300">Connected</span>
+                  <span className="text-sm text-warm-600 dark:text-warm-300">Cloud AI Active</span>
                 </>
               ) : (
                 <>
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                  <span className="text-sm text-warm-600 dark:text-warm-300">Offline</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-warm-400" />
+                  <span className="text-sm text-warm-600 dark:text-warm-300">Sign in to unlock</span>
                 </>
               )}
-              <button
-                onClick={() => refreshStatus()}
-                className="ml-auto text-xs text-coral-500 hover:text-coral-600 dark:hover:text-coral-400 transition-colors"
-              >
-                Refresh
-              </button>
             </div>
 
-            {/* Model selector or setup instructions */}
-            {isOllamaAvailable && availableModels.length > 0 ? (
-              <div>
-                <label
-                  htmlFor="ai-model-select"
-                  className="text-sm text-warm-600 dark:text-warm-300 block mb-1.5"
-                >
-                  Model
-                </label>
-                <select
-                  id="ai-model-select"
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className="w-full rounded-xl border border-warm-200 dark:border-warm-600 bg-warm-50 dark:bg-warm-700 text-warm-800 dark:text-warm-100 py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-transparent transition-colors"
-                >
-                  {availableModels.map((model) => (
-                    <option key={model} value={model}>
-                      {model}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : !isChecking && !isOllamaAvailable ? (
+            {!isChecking && !isAIAvailable && !user ? (
               <div className="space-y-2">
                 <p className="text-sm text-warm-500 dark:text-warm-400 leading-relaxed">
-                  Ollama is not running. Set up local AI to unlock the AI Tutor, Smart Practice, and Sentence Builder.
+                  Sign in to unlock AI-powered features: AI Tutor, Smart Practice, Sentence Builder, and more.
                 </p>
                 <Link
-                  to="/ai-setup"
+                  to="/auth"
                   className="inline-flex items-center gap-1.5 text-sm text-coral-500 hover:text-coral-600 dark:hover:text-coral-400 font-medium transition-colors"
                 >
-                  View Setup Guide
+                  Sign In
                   <ArrowRight size={14} />
                 </Link>
               </div>
-            ) : null}
-
-            {/* Remote Ollama Server */}
-            <div className="pt-3 border-t border-warm-100 dark:border-warm-700">
-              <label htmlFor="ollama-url" className="text-sm text-warm-600 dark:text-warm-300 block mb-1.5">
-                Remote Server
-              </label>
-              <p className="text-xs text-warm-400 dark:text-warm-500 mb-2">
-                Connect to Ollama on another machine (required for iOS). Leave empty for localhost.
+            ) : isAIAvailable ? (
+              <p className="text-sm text-warm-500 dark:text-warm-400 leading-relaxed">
+                AI features are ready to use. Enjoy the AI Tutor, Smart Practice, and Sentence Builder.
               </p>
-              <div className="flex gap-2">
-                <input
-                  id="ollama-url"
-                  type="url"
-                  value={serverUrlInput}
-                  onChange={(e) => setServerUrlInput(e.target.value)}
-                  placeholder="http://192.168.1.100:11434"
-                  className="flex-1 rounded-xl border border-warm-200 dark:border-warm-600 bg-warm-50 dark:bg-warm-700 text-warm-800 dark:text-warm-100 py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-coral-500 focus:border-transparent transition-colors"
-                />
-                <Button variant="secondary" onClick={() => setOllamaServerUrl(serverUrlInput)}>
-                  Save
-                </Button>
-              </div>
-              {ollamaServerUrl && (
-                <button
-                  onClick={() => { setServerUrlInput(''); setOllamaServerUrl(''); }}
-                  className="mt-2 text-xs text-coral-500 hover:text-coral-600 dark:hover:text-coral-400"
-                >
-                  Reset to localhost
-                </button>
-              )}
-            </div>
+            ) : null}
           </div>
         </Card>
       </motion.div>

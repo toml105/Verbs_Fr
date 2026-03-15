@@ -3,6 +3,7 @@
 
 import { Capacitor } from '@capacitor/core';
 import { SpeechRecognition as NativeSpeechRecognition } from '@capacitor-community/speech-recognition';
+import { transcribeAudio } from './aiClient';
 
 interface SpeechRecognitionResult {
   transcript: string;
@@ -41,6 +42,8 @@ function getSpeechRecognitionConstructor(): (new () => SpeechRecognitionInstance
 
 export function isSpeechRecognitionSupported(): boolean {
   if (typeof window === 'undefined') return false;
+  // Cloud STT works anywhere with MediaRecorder (mic access)
+  if (navigator.mediaDevices?.getUserMedia) return true;
   if (getSpeechRecognitionConstructor() !== null) return true;
   if (Capacitor.isNativePlatform()) return true;
   return false;
@@ -125,7 +128,80 @@ async function listenForSpeechNative(lang: string): Promise<SpeechRecognitionRes
   }
 }
 
+/** Record audio from microphone using MediaRecorder, then transcribe via Groq Whisper */
+async function listenForSpeechCloud(): Promise<SpeechRecognitionResult> {
+  if (typeof window === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+    throw new Error('MediaRecorder not supported');
+  }
+
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+  return new Promise((resolve, reject) => {
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : 'audio/mp4';
+
+    const recorder = new MediaRecorder(stream, { mimeType });
+    const chunks: Blob[] = [];
+    let resolved = false;
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+
+    recorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+
+      if (resolved) return;
+      resolved = true;
+
+      if (chunks.length === 0) {
+        resolve({ transcript: '', confidence: 0 });
+        return;
+      }
+
+      const blob = new Blob(chunks, { type: mimeType });
+
+      try {
+        const text = await transcribeAudio(blob);
+        resolve({
+          transcript: text.trim(),
+          confidence: text.trim() ? 0.95 : 0,
+        });
+      } catch (err) {
+        reject(err);
+      }
+    };
+
+    recorder.onerror = () => {
+      stream.getTracks().forEach(t => t.stop());
+      if (!resolved) {
+        resolved = true;
+        reject(new Error('Recording failed'));
+      }
+    };
+
+    recorder.start(250);
+
+    // Auto-stop after 8 seconds (same as browser STT timeout)
+    setTimeout(() => {
+      if (recorder.state === 'recording') {
+        recorder.stop();
+      }
+    }, 8000);
+  });
+}
+
 export async function listenForSpeech(lang = 'fr-FR'): Promise<SpeechRecognitionResult> {
+  // Try cloud STT first (Groq Whisper — much better French recognition)
+  try {
+    return await listenForSpeechCloud();
+  } catch {
+    // Fall back to browser/native STT
+  }
+
   if (getSpeechRecognitionConstructor()) {
     return listenForSpeechWeb(lang);
   }

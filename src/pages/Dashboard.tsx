@@ -18,7 +18,7 @@ import { todayString } from '../lib/utils';
 export default function Dashboard() {
   const navigate = useNavigate();
   const { userData, getOverallMastery, getDueReviewCount, getDueGrammarLessons } = useProgress();
-  const { isOllamaAvailable } = useAI();
+  const { isAIAvailable } = useAI();
   const { stats } = userData;
 
   const overallMastery = getOverallMastery();
@@ -75,9 +75,9 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-2">
           {/* AI status indicator */}
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-warm-50 dark:bg-warm-700/50" title={isOllamaAvailable ? 'AI Online' : 'AI Offline'}>
-            <Sparkles size={14} className={isOllamaAvailable ? 'text-coral-500' : 'text-warm-400'} />
-            <span className={`w-2 h-2 rounded-full ${isOllamaAvailable ? 'bg-emerald-500' : 'bg-warm-300 dark:bg-warm-500'}`} />
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-warm-50 dark:bg-warm-700/50" title={isAIAvailable ? 'AI Online' : 'AI Offline'}>
+            <Sparkles size={14} className={isAIAvailable ? 'text-coral-500' : 'text-warm-400'} />
+            <span className={`w-2 h-2 rounded-full ${isAIAvailable ? 'bg-emerald-500' : 'bg-warm-300 dark:bg-warm-500'}`} />
           </div>
           {stats.currentStreak > 0 && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 rounded-full">
@@ -232,10 +232,10 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {isOllamaAvailable ? (
+            {isAIAvailable ? (
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             ) : (
-              <span className="text-xs text-warm-400">(Offline)</span>
+              <span className="text-xs text-warm-400">(Sign in)</span>
             )}
             <ChevronRight size={16} className="text-warm-400" />
           </div>

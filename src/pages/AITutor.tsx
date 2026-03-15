@@ -147,7 +147,7 @@ function DifficultyStars({ level }: { level: 1 | 2 | 3 }) {
 }
 
 export default function AITutor() {
-  const { isOllamaAvailable, chatStream } = useAI();
+  const { isAIAvailable, chatStream } = useAI();
   const { user } = useAuth();
   const { getOverallMastery } = useProgress();
   const navigate = useNavigate();
@@ -318,7 +318,7 @@ export default function AITutor() {
       setIsGenerating(true);
 
       try {
-        const ollamaMessages = [
+        const chatMessages = [
           { role: 'system' as const, content: systemContent },
           {
             role: 'user' as const,
@@ -329,7 +329,7 @@ export default function AITutor() {
         ];
 
         let accumulated = '';
-        await chatStream(ollamaMessages, (token) => {
+        await chatStream(chatMessages, (token) => {
           accumulated += token;
           setMessages((prev) => {
             const updated = [...prev];
@@ -378,7 +378,7 @@ export default function AITutor() {
           const lastIdx = updated.length - 1;
           updated[lastIdx] = {
             ...updated[lastIdx],
-            content: 'Sorry, I could not connect to the AI. Please check that Ollama is running.',
+            content: 'Sorry, I could not connect to the AI service. Please try again.',
           };
           return updated;
         });
@@ -412,8 +412,8 @@ export default function AITutor() {
       setIsGenerating(true);
 
       try {
-        // Build the full messages array for Ollama
-        const ollamaMessages = messages
+        // Build the full messages array for AI
+        const chatMessages = messages
           .filter((m) => m.role === 'system' || m.content.length > 0)
           .map((m) => ({
             role: m.role as 'system' | 'user' | 'assistant',
@@ -421,10 +421,10 @@ export default function AITutor() {
           }));
 
         // Add the new user message
-        ollamaMessages.push({ role: 'user', content: text });
+        chatMessages.push({ role: 'user', content: text });
 
         let accumulated = '';
-        await chatStream(ollamaMessages, (token) => {
+        await chatStream(chatMessages, (token) => {
           accumulated += token;
           setMessages((prev) => {
             const updated = [...prev];
@@ -512,13 +512,13 @@ export default function AITutor() {
           </div>
         </motion.div>
 
-        {/* Ollama status */}
+        {/* AI status */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
         >
-          {isOllamaAvailable ? (
+          {isAIAvailable ? (
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-sm">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               AI tutor is online and ready
@@ -528,20 +528,10 @@ export default function AITutor() {
               <AlertTriangle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                  AI Tutor Offline
+                  AI Tutor Unavailable
                 </p>
                 <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
-                  Ollama is not running. Start it to use the AI tutor.
-                  Visit{' '}
-                  <a
-                    href="https://ollama.ai"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-amber-800"
-                  >
-                    ollama.ai
-                  </a>{' '}
-                  for setup instructions.
+                  Sign in to use the AI tutor and unlock all AI-powered features.
                 </p>
               </div>
             </div>
@@ -632,7 +622,7 @@ export default function AITutor() {
       {/* Input area */}
       <ChatInput
         onSend={handleSendMessage}
-        disabled={isGenerating || !isOllamaAvailable}
+        disabled={isGenerating || !isAIAvailable}
         isRecording={isRecording}
       />
     </div>

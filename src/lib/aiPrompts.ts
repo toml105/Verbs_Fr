@@ -1,6 +1,6 @@
 /**
- * System prompts for Ollama AI features.
- * Each prompt is designed to work with Mistral 7B or similar models.
+ * System prompts for AI features.
+ * Each prompt is designed to work with Mistral or similar models.
  * Responses should be concise and pedagogically sound.
  */
 

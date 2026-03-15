@@ -22,7 +22,7 @@ export default function Practice() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { userData, recordAnswer, getDueItems, recordPerfectSession, recordSpeedDrill } = useProgress();
-  const { isOllamaAvailable } = useAI();
+  const { isAIAvailable } = useAI();
 
   // Get quick weakness summary for Smart Practice card
   const weaknessSummary = useMemo(() => {
@@ -203,7 +203,7 @@ export default function Practice() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="font-semibold text-warm-800 dark:text-warm-100">Smart Practice</p>
-                {isOllamaAvailable && (
+                {isAIAvailable && (
                   <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gradient-to-r from-violet-100 to-coral-100 dark:from-violet-900/40 dark:to-coral-900/40 text-violet-600 dark:text-violet-400 uppercase tracking-wide">
                     AI
                   </span>

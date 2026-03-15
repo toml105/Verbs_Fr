@@ -17,7 +17,7 @@ interface ChatMessage {
 }
 
 export default function GrammarHelper({ context, isOpen, onClose }: GrammarHelperProps) {
-  const { isOllamaAvailable, chat } = useAI();
+  const { isAIAvailable, chat } = useAI();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -52,7 +52,7 @@ export default function GrammarHelper({ context, isOpen, onClose }: GrammarHelpe
 
   const handleSend = useCallback(async () => {
     const trimmed = input.trim();
-    if (!trimmed || isLoading || !isOllamaAvailable) return;
+    if (!trimmed || isLoading || !isAIAvailable) return;
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -66,7 +66,7 @@ export default function GrammarHelper({ context, isOpen, onClose }: GrammarHelpe
 
     try {
       const systemPrompt = SYSTEM_PROMPTS.grammarExplainer(context);
-      const ollamaMessages = [
+      const chatMessages = [
         { role: 'system' as const, content: systemPrompt },
         ...messages.map(m => ({
           role: m.role as 'user' | 'assistant',
@@ -75,7 +75,7 @@ export default function GrammarHelper({ context, isOpen, onClose }: GrammarHelpe
         { role: 'user' as const, content: trimmed },
       ];
 
-      const response = await chat(ollamaMessages);
+      const response = await chat(chatMessages);
 
       const assistantMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -94,7 +94,7 @@ export default function GrammarHelper({ context, isOpen, onClose }: GrammarHelpe
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, isOllamaAvailable, chat, context, messages]);
+  }, [input, isLoading, isAIAvailable, chat, context, messages]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -152,12 +152,12 @@ export default function GrammarHelper({ context, isOpen, onClose }: GrammarHelpe
               ref={scrollRef}
               className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-[200px]"
             >
-              {!isOllamaAvailable ? (
+              {!isAIAvailable ? (
                 <div className="flex flex-col items-center justify-center h-full gap-2 text-warm-400 py-8">
                   <WifiOff size={28} />
-                  <p className="text-sm font-medium">AI assistant is offline</p>
+                  <p className="text-sm font-medium">AI assistant unavailable</p>
                   <p className="text-xs text-center">
-                    Make sure Ollama is running locally to use the grammar helper.
+                    Sign in to use the grammar helper.
                   </p>
                 </div>
               ) : messages.length === 0 ? (
@@ -218,7 +218,7 @@ export default function GrammarHelper({ context, isOpen, onClose }: GrammarHelpe
             </div>
 
             {/* Input */}
-            {isOllamaAvailable && (
+            {isAIAvailable && (
               <div className="px-4 py-3 border-t border-warm-100 dark:border-warm-700 flex-shrink-0">
                 <div className="flex gap-2">
                   <input

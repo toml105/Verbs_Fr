@@ -1,6 +1,6 @@
 import { SYSTEM_PROMPTS } from './aiPrompts';
 import type { GrammarCorrection } from '../types';
-import type { OllamaMessage } from './ollama';
+import type { ChatMessage } from './aiClient';
 import { normalizeFrench } from './speechRecognition';
 
 export interface SpeechFeedback {
@@ -18,10 +18,10 @@ export interface SpeechFeedback {
 export async function analyzeSpeech(
   transcript: string,
   expected: string,
-  chatFn: (messages: OllamaMessage[]) => Promise<string>
+  chatFn: (messages: ChatMessage[]) => Promise<string>
 ): Promise<SpeechFeedback> {
   try {
-    const messages: OllamaMessage[] = [
+    const messages: ChatMessage[] = [
       { role: 'system', content: SYSTEM_PROMPTS.pronunciationCoach },
       {
         role: 'user',

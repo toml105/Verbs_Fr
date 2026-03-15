@@ -3,173 +3,83 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import {
-  checkOllamaStatus,
-  listModels,
-  chat as ollamaChat,
-  chatStream as ollamaChatStream,
-  setOllamaServerUrl as setOllamaUrl,
-  getOllamaServerUrl,
-  type OllamaMessage,
-  type OllamaChatOptions,
-} from '../lib/ollama';
-
-const LOCAL_STORAGE_KEY = 'conjugo_ai_model';
-const STATUS_CHECK_INTERVAL = 30_000; // 30 seconds
-const DEFAULT_MODEL = 'mistral';
+  checkAIStatus,
+  chat as aiChat,
+  chatStream as aiChatStream,
+  type ChatMessage,
+  type ChatOptions,
+} from '../lib/aiClient';
+import { useAuth } from './AuthContext';
 
 interface AIContextType {
-  isOllamaAvailable: boolean;
+  isAIAvailable: boolean;
   isChecking: boolean;
-  selectedModel: string;
-  setSelectedModel: (model: string) => void;
-  availableModels: string[];
-  chat: (messages: OllamaMessage[], options?: OllamaChatOptions) => Promise<string>;
-  chatStream: (messages: OllamaMessage[], onToken: (token: string) => void) => Promise<string>;
+  chat: (messages: ChatMessage[], options?: ChatOptions) => Promise<string>;
+  chatStream: (messages: ChatMessage[], onToken: (token: string) => void) => Promise<string>;
   refreshStatus: () => Promise<void>;
-  ollamaServerUrl: string;
-  setOllamaServerUrl: (url: string) => void;
 }
 
 const AIContext = createContext<AIContextType>({
-  isOllamaAvailable: false,
+  isAIAvailable: false,
   isChecking: true,
-  selectedModel: '',
-  setSelectedModel: () => {},
-  availableModels: [],
   chat: async () => '',
   chatStream: async () => '',
   refreshStatus: async () => {},
-  ollamaServerUrl: '',
-  setOllamaServerUrl: () => {},
 });
 
 export function AIProvider({ children }: { children: ReactNode }) {
-  const [isOllamaAvailable, setIsOllamaAvailable] = useState(false);
+  const [isAIAvailable, setIsAIAvailable] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [selectedModel, setSelectedModelState] = useState<string>(() => {
-    try {
-      return localStorage.getItem(LOCAL_STORAGE_KEY) ?? '';
-    } catch {
-      return '';
-    }
-  });
+  const { user } = useAuth();
 
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const [ollamaServerUrl, setOllamaServerUrlState] = useState<string>(getOllamaServerUrl());
-
-  /**
-   * Check Ollama status and fetch available models.
-   * Sets isChecking only on the initial check (when isChecking is already true).
-   */
-  const checkStatus = useCallback(async (isInitial: boolean) => {
-    if (isInitial) setIsChecking(true);
-
-    const available = await checkOllamaStatus();
-    setIsOllamaAvailable(available);
-
-    if (available) {
-      const models = await listModels();
-      setAvailableModels(models);
-
-      // Auto-select model if none is selected yet
-      setSelectedModelState((current) => {
-        if (current && models.includes(current)) return current;
-        // Prefer mistral if available, otherwise first model
-        const defaultChoice = models.find((m) => m.startsWith(DEFAULT_MODEL));
-        const chosen = defaultChoice ?? models[0] ?? '';
-        if (chosen) {
-          try {
-            localStorage.setItem(LOCAL_STORAGE_KEY, chosen);
-          } catch {
-            // Ignore localStorage errors
-          }
-        }
-        return chosen;
-      });
-    } else {
-      setAvailableModels([]);
-    }
-
-    if (isInitial) setIsChecking(false);
-  }, []);
-
-  // Initial check on mount
+  // Check AI availability when auth state changes
   useEffect(() => {
-    checkStatus(true);
-  }, [checkStatus]);
+    let cancelled = false;
 
-  // Periodic re-check every 30 seconds
-  useEffect(() => {
-    intervalRef.current = setInterval(() => {
-      checkStatus(false);
-    }, STATUS_CHECK_INTERVAL);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+    async function check() {
+      setIsChecking(true);
+      const available = await checkAIStatus();
+      if (!cancelled) {
+        setIsAIAvailable(available);
+        setIsChecking(false);
       }
-    };
-  }, [checkStatus]);
-
-  const setSelectedModel = useCallback((model: string) => {
-    setSelectedModelState(model);
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, model);
-    } catch {
-      // Ignore localStorage errors
     }
-  }, []);
+
+    check();
+    return () => { cancelled = true; };
+  }, [user]);
 
   const chat = useCallback(
-    async (messages: OllamaMessage[], options?: OllamaChatOptions): Promise<string> => {
-      if (!selectedModel) {
-        throw new Error('No AI model selected');
-      }
-      return ollamaChat(selectedModel, messages, options);
+    async (messages: ChatMessage[], options?: ChatOptions): Promise<string> => {
+      return aiChat(messages, options);
     },
-    [selectedModel]
+    []
   );
 
   const chatStream = useCallback(
-    async (messages: OllamaMessage[], onToken: (token: string) => void): Promise<string> => {
-      if (!selectedModel) {
-        throw new Error('No AI model selected');
-      }
-      return ollamaChatStream(selectedModel, messages, onToken);
+    async (messages: ChatMessage[], onToken: (token: string) => void): Promise<string> => {
+      return aiChatStream(messages, onToken);
     },
-    [selectedModel]
+    []
   );
 
   const refreshStatus = useCallback(async () => {
-    await checkStatus(false);
-  }, [checkStatus]);
-
-  const handleSetOllamaServerUrl = useCallback((url: string) => {
-    setOllamaUrl(url);
-    setOllamaServerUrlState(url);
-    checkStatus(true);
-  }, [checkStatus]);
+    const available = await checkAIStatus();
+    setIsAIAvailable(available);
+  }, []);
 
   return (
     <AIContext.Provider
       value={{
-        isOllamaAvailable,
+        isAIAvailable,
         isChecking,
-        selectedModel,
-        setSelectedModel,
-        availableModels,
         chat,
         chatStream,
         refreshStatus,
-        ollamaServerUrl,
-        setOllamaServerUrl: handleSetOllamaServerUrl,
       }}
     >
       {children}

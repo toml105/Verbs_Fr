@@ -22,7 +22,7 @@ export default function VerbDetail() {
   const { verbId } = useParams();
   const navigate = useNavigate();
   const { getVerbMastery, userData } = useProgress();
-  const { isOllamaAvailable } = useAI();
+  const { isAIAvailable } = useAI();
   const [showGrammarHelper, setShowGrammarHelper] = useState(false);
 
   const verb = verbs.find((v) => v.id === verbId);
@@ -200,7 +200,7 @@ export default function VerbDetail() {
       )}
 
       {/* Floating Ask AI button */}
-      {isOllamaAvailable && (
+      {isAIAvailable && (
         <motion.button
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
