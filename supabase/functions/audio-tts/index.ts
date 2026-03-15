@@ -2,7 +2,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 // --- Configuration ---
 const ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech";
-const DEFAULT_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"; // Sarah
+const DEFAULT_VOICE_ID = "txtf1EDouKke753vN8SL"; // Jeanne - Professional (native Parisian French)
 const MODEL_ID = "eleven_multilingual_v2";
 const MAX_TEXT_LENGTH = 500;
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         text,
         model_id: MODEL_ID,
-        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+        voice_settings: { stability: 0.65, similarity_boost: 0.80 },
       }),
     });
 

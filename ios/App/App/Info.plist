@@ -45,6 +45,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Conjugo needs microphone access for French speech recognition practice.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Conjugo uses speech recognition to evaluate your French pronunciation.</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 </dict>
